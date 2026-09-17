@@ -28,7 +28,9 @@
         👂 ВАША ОЧЕРЕДЬ СЛУШАТЬ
       </div>
       <p class="text-sm mt-2 opacity-70">
-        {{ amIReading ? 'Прочитайте вопрос вслух и дождитесь ответа' : 'Внимательно слушайте партнера' }}
+        {{ amIReading
+          ? 'Прочитайте вопрос вслух, дождитесь ответа партнёра, затем нажмите «Ответ услышан»'
+          : 'Слушайте ответ партнёра, затем нажмите «Ответ услышан»' }}
       </p>
     </div>
 
@@ -63,7 +65,9 @@
     </main>
 
     <footer class="mt-8 space-y-3" role="contentinfo">
-      <div v-if="amIReading && currentQuestion && !isFinished" class="flex gap-3">
+      <!-- Кнопки доступны обеим ролям: в офлайн-режиме нет синхронизации
+           между устройствами, и каждая сторона подтверждает переход сама. -->
+      <div v-if="currentQuestion && !isFinished" class="flex gap-3">
         <button
           @click="handlePrev"
           :disabled="currentTurn === 0"
@@ -85,12 +89,6 @@
         >
           ⏭️
         </button>
-      </div>
-      <div
-        v-else-if="currentQuestion && !isFinished"
-        class="w-full py-5 bg-gray-700 text-gray-500 text-xl font-bold rounded-xl text-center"
-      >
-        Ждите партнера...
       </div>
     </footer>
   </div>
@@ -126,7 +124,7 @@ function resetProgressAndStay() {
 }
 
 function onKeyDown(e) {
-  if (!amIReading.value || isFinished.value) return
+  if (isFinished.value) return
   if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); handleNext() }
   if (e.key === 'ArrowLeft')  { e.preventDefault(); handlePrev() }
   if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') { e.preventDefault(); handleSkip() }

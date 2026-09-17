@@ -19,7 +19,7 @@
       </div>
 
       <!-- Продолжить сессию -->
-      <div v-if="hasSavedSession() && !shareParams" class="mb-8">
+      <div v-if="hasSavedSession && !shareParams" class="mb-8">
         <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
           <h2 class="text-2xl font-bold mb-2">Продолжить сессию?</h2>
           <p class="mb-4">У вас есть незавершенная сессия</p>
@@ -37,7 +37,7 @@
       </div>
 
       <!-- Экспорт -->
-      <div v-if="hasSavedSession()" class="mb-6 flex gap-4">
+      <div v-if="hasSavedSession" class="mb-6 flex gap-4">
         <button @click="handleExport"
                 class="flex-1 py-3 bg-blue-500 hover:bg-blue-400 rounded-lg font-bold">
           📥 Экспорт состояния
@@ -72,7 +72,8 @@
         <div v-if="selectedDeckId" class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
           <h2 class="text-2xl font-bold mb-4">2. Выберите порядок вопросов</h2>
           <p class="text-sm opacity-80 mb-4">
-            Договоритесь с партнером о букве порядка — либо покажите ему QR-код ниже
+            Договоритесь с партнером о букве порядка — одинаковая буква даст
+            одинаковую последовательность вопросов.
           </p>
           <div class="grid grid-cols-5 gap-3">
             <button
@@ -117,13 +118,30 @@
           </div>
         </div>
 
-        <!-- QR-код -->
-        <div v-if="selectedRole" class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
-          <h3 class="text-xl font-bold mb-4">Покажите партнеру для синхронизации</h3>
-          <div v-if="qrDataUrl" class="inline-block bg-white p-3 rounded-lg">
-            <img :src="qrDataUrl" alt="QR-код со ссылкой на сессию" class="w-48 h-48" />
+        <!-- QR-код для синхронизации — показываем плашку раньше,
+             с плейсхолдером до выбора всех опций -->
+        <div v-if="selectedDeckId" class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
+          <h3 class="text-xl font-bold mb-4">Синхронизация с партнёром</h3>
+
+          <div v-if="!selectedRole || selectedOrderIndex === null">
+            <div class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg mb-4 opacity-60">
+              <span class="text-5xl opacity-50">📷</span>
+            </div>
+            <p class="text-sm opacity-70">
+              Выберите порядок и роль — здесь появится QR-код, который
+              партнёр сможет отсканировать, чтобы открыть ту же сессию.
+            </p>
           </div>
-          <p class="text-xs opacity-70 mt-3 break-all">{{ shareUrl }}</p>
+
+          <div v-else>
+            <div v-if="qrDataUrl" class="inline-block bg-white p-3 rounded-lg">
+              <img :src="qrDataUrl" alt="QR-код со ссылкой на сессию" class="w-48 h-48" />
+            </div>
+            <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg">
+              <span class="text-sm opacity-70">Генерация...</span>
+            </div>
+            <p class="text-xs opacity-70 mt-3 break-all">{{ shareUrl }}</p>
+          </div>
         </div>
 
         <!-- Старт -->
@@ -212,7 +230,7 @@ function startNew() {
 }
 
 function handleExport() {
-  if (!hasSavedSession()) {
+  if (!hasSavedSession.value) {
     alert('Нет сохранённой сессии для экспорта')
     return
   }

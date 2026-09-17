@@ -327,26 +327,26 @@ describe('useDeck — singleton state', () => {
 
   it('hasSavedSession: false на пустом localStorage', () => {
     const d = useDeck()
-    expect(d.hasSavedSession()).toBe(false)
+    expect(d.hasSavedSession.value).toBe(false)
   })
 
   it('hasSavedSession: true после startSession', () => {
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
-    expect(d.hasSavedSession()).toBe(true)
+    expect(d.hasSavedSession.value).toBe(true)
   })
 
   it('hasSavedSession: false после resetProgress', () => {
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
     d.resetProgress()
-    expect(d.hasSavedSession()).toBe(false)
+    expect(d.hasSavedSession.value).toBe(false)
   })
 
   it('hasSavedSession: false на повреждённом localStorage', () => {
     localStorage.setItem('game_state', '{not valid json')
     const d = useDeck()
-    expect(d.hasSavedSession()).toBe(false)
+    expect(d.hasSavedSession.value).toBe(false)
   })
 
   it('восстанавливает состояние из localStorage после перезагрузки модуля', async () => {

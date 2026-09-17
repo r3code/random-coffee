@@ -162,14 +162,12 @@ function resetProgress() {
   localStorage.removeItem(stateKey)
 }
 
-function hasSavedSession() {
-  try {
-    const s = JSON.parse(localStorage.getItem(stateKey) || '{}')
-    return !!(s.deckId && s.orderIndex !== null && s.orderIndex !== undefined && s.role)
-  } catch {
-    return false
-  }
-}
+// Computed на основе реактивных refs, а не прямой читки localStorage.
+// Иначе Vue не отследит изменение и не ре-рендерит шаблон после resetProgress()
+// (баг: кнопка "Новая" внешне не срабатывала).
+const hasSavedSession = computed(() => {
+  return !!(deckId.value && orderIndex.value !== null && orderIndex.value !== undefined && role.value)
+})
 
 // ─── Export / Import ────────────────────────────────────────────
 function exportState() {
