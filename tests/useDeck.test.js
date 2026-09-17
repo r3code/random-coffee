@@ -1,0 +1,440 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { ref } from 'vue'
+
+// ─── Pure-function tests (no Vue, no localStorage) ────────────────
+// Импортируем только чистые функции, чтобы не зависеть от singleton state
+
+import { makeRandom, generateOrder, decks, deckIds } from '@/data/decks'
+import { migrate, parseShareUrl, buildShareUrl, SCHEMA_VERSION } from '@/composables/useDeck'
+
+describe('data/decks.js', () => {
+  describe('makeRandom', () => {
+    it('детерминирован для одного seed', () => {
+      const r1 = makeRandom(12345)
+      const r2 = makeRandom(12345)
+      const seq1 = Array.from({ length: 10 }, () => r1())
+      const seq2 = Array.from({ length: 10 }, () => r2())
+      expect(seq1).toEqual(seq2)
+    })
+
+    it('разные seed дают разные последовательности (вероятностно)', () => {
+      const r1 = makeRandom(1)
+      const r2 = makeRandom(2)
+      const seq1 = Array.from({ length: 5 }, () => r1())
+      const seq2 = Array.from({ length: 5 }, () => r2())
+      expect(seq1).not.toEqual(seq2)
+    })
+
+    it('возвращает значения в [0, 1)', () => {
+      const r = makeRandom(42)
+      for (let i = 0; i < 100; i++) {
+        const v = r()
+        expect(v).toBeGreaterThanOrEqual(0)
+        expect(v).toBeLessThan(1)
+      }
+    })
+  })
+
+  describe('generateOrder', () => {
+    it('возвращает массив той же длины', () => {
+      const qs = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
+      const order = generateOrder(qs, 12345)
+      expect(order).toHaveLength(4)
+    })
+
+    it('содержит все исходные id без дубликатов', () => {
+      const qs = Array.from({ length: 15 }, (_, i) => ({ id: `q${i}` }))
+      const order = generateOrder(qs, 999)
+      const unique = new Set(order)
+      expect(unique.size).toBe(15)
+      qs.forEach(q => expect(unique.has(q.id)).toBe(true))
+    })
+
+    it('детерминирован для одного seed', () => {
+      const qs = Array.from({ length: 15 }, (_, i) => ({ id: `q${i}` }))
+      const o1 = generateOrder(qs, 12345)
+      const o2 = generateOrder(qs, 12345)
+      expect(o1).toEqual(o2)
+    })
+
+    it('разные seed обычно дают разные порядки', () => {
+      const qs = Array.from({ length: 15 }, (_, i) => ({ id: `q${i}` }))
+      const o1 = generateOrder(qs, 1)
+      const o2 = generateOrder(qs, 2)
+      expect(o1).not.toEqual(o2)
+    })
+
+    it('пустой массив вопросов → пустой порядок', () => {
+      expect(generateOrder([], 12345)).toEqual([])
+    })
+
+    it('один элемент → порядок из одного элемента', () => {
+      expect(generateOrder([{ id: 'x' }], 12345)).toEqual(['x'])
+    })
+  })
+
+  describe('decks', () => {
+    it('содержит колоды deep и work', () => {
+      expect(deckIds).toContain('deep')
+      expect(deckIds).toContain('work')
+    })
+
+    it('каждая колода имеет 10 порядков A..J', () => {
+      for (const id of deckIds) {
+        const deck = decks[id]
+        expect(deck.orders).toHaveLength(10)
+        const names = deck.orders.map(o => o.name)
+        expect(names).toEqual(['A','B','C','D','E','F','G','H','I','J'])
+      }
+    })
+
+    it('каждый порядок имеет уникальную последовательность', () => {
+      for (const id of deckIds) {
+        const deck = decks[id]
+        const sequences = deck.orders.map(o => o.sequence.join(','))
+        const unique = new Set(sequences)
+        expect(unique.size).toBe(10)
+      }
+    })
+
+    it('каждая последовательность содержит все id вопросов колоды', () => {
+      for (const id of deckIds) {
+        const deck = decks[id]
+        const allIds = new Set(deck.questions.map(q => q.id))
+        for (const order of deck.orders) {
+          const orderIds = new Set(order.sequence)
+          expect(orderIds.size).toBe(allIds.size)
+          allIds.forEach(id => expect(orderIds.has(id)).toBe(true))
+        }
+      }
+    })
+
+    it('deep имеет 15 вопросов, work — 10', () => {
+      expect(decks.deep.questions).toHaveLength(15)
+      expect(decks.work.questions).toHaveLength(10)
+    })
+  })
+})
+
+describe('useDeck — migrate()', () => {
+  it('возвращает пустой объект для null/undefined', () => {
+    expect(migrate(null)).toEqual({})
+    expect(migrate(undefined)).toEqual({})
+  })
+
+  it('возвращает пустой объект для не-объекта', () => {
+    expect(migrate('hello')).toEqual({})
+    expect(migrate(42)).toEqual({})
+    expect(migrate([])).toEqual({})
+  })
+
+  it('мигрирует v0 (без version) в v1', () => {
+    const v0 = { deckId: 'deep', orderIndex: 2, currentTurn: 5, role: 'reader' }
+    const result = migrate(v0)
+    expect(result.version).toBe(1)
+    expect(result.passedIds).toEqual([])
+    expect(result.skippedIds).toEqual([])
+    expect(result.deckId).toBe('deep')
+  })
+
+  it('не трогает существующие passedIds/skippedIds', () => {
+    const v0 = { deckId: 'deep', passedIds: ['q1', 'q2'], skippedIds: ['q3'] }
+    const result = migrate(v0)
+    expect(result.passedIds).toEqual(['q1', 'q2'])
+    expect(result.skippedIds).toEqual(['q3'])
+  })
+
+  it('проходит без изменений для уже v1', () => {
+    const v1 = { version: 1, deckId: 'deep', orderIndex: 0, passedIds: [] }
+    const result = migrate(v1)
+    expect(result).toEqual(v1)
+  })
+
+  it('SCHEMA_VERSION = 1', () => {
+    expect(SCHEMA_VERSION).toBe(1)
+  })
+})
+
+describe('useDeck — parseShareUrl()', () => {
+  it('парсит валидную ссылку', () => {
+    const result = parseShareUrl({ deck: 'deep', order: '3', role: 'listener' })
+    expect(result).toEqual({ deck: 'deep', order: 3, role: 'listener' })
+  })
+
+  it('возвращает null для пустого query', () => {
+    expect(parseShareUrl({})).toBeNull()
+    expect(parseShareUrl(null)).toBeNull()
+    expect(parseShareUrl(undefined)).toBeNull()
+  })
+
+  it('возвращает null для неизвестной колоды', () => {
+    expect(parseShareUrl({ deck: 'unknown', order: '0', role: 'reader' })).toBeNull()
+  })
+
+  it('возвращает null для невалидного orderIndex', () => {
+    expect(parseShareUrl({ deck: 'deep', order: 'abc', role: 'reader' })).toBeNull()
+    expect(parseShareUrl({ deck: 'deep', order: '-1', role: 'reader' })).toBeNull()
+    expect(parseShareUrl({ deck: 'deep', order: '10', role: 'reader' })).toBeNull()
+  })
+
+  it('возвращает null для невалидной роли', () => {
+    expect(parseShareUrl({ deck: 'deep', order: '0', role: 'admin' })).toBeNull()
+    expect(parseShareUrl({ deck: 'deep', order: '0', role: '' })).toBeNull()
+  })
+})
+
+describe('useDeck — buildShareUrl()', () => {
+  it('генерирует корректный URL', () => {
+    // jsdom устанавливает location.origin и location.pathname
+    const url = buildShareUrl('deep', 3, 'listener')
+    expect(url).toContain('deck=deep')
+    expect(url).toContain('order=3')
+    expect(url).toContain('role=listener')
+    expect(url.startsWith('http')).toBe(true)
+  })
+
+  it('round-trip: buildShareUrl → parseShareUrl', () => {
+    const url = buildShareUrl('work', 7, 'reader')
+    const query = Object.fromEntries(new URL(url).searchParams)
+    const parsed = parseShareUrl(query)
+    expect(parsed).toEqual({ deck: 'work', order: 7, role: 'reader' })
+  })
+})
+
+// ─── Singleton state tests (через useDeck) ──────────────────────
+// Внимание: useDeck — singleton, refs создаются один раз на модуль.
+// Поэтому тестируем как единое состояние.
+
+describe('useDeck — singleton state', () => {
+  let useDeck
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    // Переимпортируем модуль чтобы получить свежий singleton
+    const mod = await import('@/composables/useDeck?session=' + Date.now())
+    useDeck = mod.useDeck
+  })
+
+  it('возвращает одинаковые refs при повторном вызове', () => {
+    const a = useDeck()
+    const b = useDeck()
+    // Сравниваем развёрнутые значения refs — должны быть идентичны
+    expect(a.deckId).toBe(b.deckId)
+    expect(a.role).toBe(b.role)
+    expect(a.currentTurn).toBe(b.currentTurn)
+  })
+
+  it('startSession устанавливает состояние', () => {
+    const d = useDeck()
+    d.startSession('deep', 3, 'reader')
+    expect(d.deckId.value).toBe('deep')
+    expect(d.orderIndex.value).toBe(3)
+    expect(d.role.value).toBe('reader')
+    expect(d.currentTurn.value).toBe(0)
+    expect(d.passedIds.value).toEqual([])
+    expect(d.skippedIds.value).toEqual([])
+  })
+
+  it('nextQuestion увеличивает turn и добавляет в passedIds', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    const firstQ = d.currentQuestion.value
+    d.nextQuestion()
+    expect(d.currentTurn.value).toBe(1)
+    expect(d.passedIds.value).toContain(firstQ.id)
+  })
+
+  it('prevQuestion уменьшает turn (passedIds сохраняется как история)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    const firstQ = d.currentQuestion.value
+    d.nextQuestion()
+    d.prevQuestion()
+    expect(d.currentTurn.value).toBe(0)
+    // passedIds НЕ очищается — это историческая запись
+    expect(d.passedIds.value).toContain(firstQ.id)
+    // Возврат к первому вопросу
+    expect(d.currentQuestion.value.id).toBe(firstQ.id)
+  })
+
+  it('prevQuestion на turn=0 ничего не делает', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.prevQuestion()
+    expect(d.currentTurn.value).toBe(0)
+  })
+
+  it('skipQuestion увеличивает turn и добавляет в skippedIds', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    const firstQ = d.currentQuestion.value
+    d.skipQuestion()
+    expect(d.currentTurn.value).toBe(1)
+    expect(d.skippedIds.value).toContain(firstQ.id)
+  })
+
+  it('amIReading: reader на чётных ходах', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    expect(d.amIReading.value).toBe(true)  // turn 0
+    d.nextQuestion()
+    expect(d.amIReading.value).toBe(false) // turn 1
+    d.nextQuestion()
+    expect(d.amIReading.value).toBe(true)   // turn 2
+  })
+
+  it('amIReading: listener на нечётных ходах', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'listener')
+    expect(d.amIReading.value).toBe(false) // turn 0
+    d.nextQuestion()
+    expect(d.amIReading.value).toBe(true)  // turn 1
+  })
+
+  it('isSkipped: true после skip + prev', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.skipQuestion()
+    d.prevQuestion()
+    expect(d.isSkipped.value).toBe(true)
+  })
+
+  it('isFinished: true после прохождения всех вопросов', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')
+    // work имеет 10 вопросов
+    for (let i = 0; i < 10; i++) {
+      d.nextQuestion()
+    }
+    expect(d.isFinished.value).toBe(true)
+    expect(d.currentQuestion.value).toBeNull()
+  })
+
+  it('resetProgress очищает состояние и localStorage', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    expect(localStorage.getItem('game_state')).not.toBeNull()
+    d.resetProgress()
+    expect(d.deckId.value).toBeNull()
+    expect(d.orderIndex.value).toBeNull()
+    expect(d.role.value).toBeNull()
+    expect(d.currentTurn.value).toBe(0)
+    expect(localStorage.getItem('game_state')).toBeNull()
+  })
+
+  it('hasSavedSession: false на пустом localStorage', () => {
+    const d = useDeck()
+    expect(d.hasSavedSession()).toBe(false)
+  })
+
+  it('hasSavedSession: true после startSession', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    expect(d.hasSavedSession()).toBe(true)
+  })
+
+  it('hasSavedSession: false после resetProgress', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.resetProgress()
+    expect(d.hasSavedSession()).toBe(false)
+  })
+
+  it('hasSavedSession: false на повреждённом localStorage', () => {
+    localStorage.setItem('game_state', '{not valid json')
+    const d = useDeck()
+    expect(d.hasSavedSession()).toBe(false)
+  })
+
+  it('восстанавливает состояние из localStorage после перезагрузки модуля', async () => {
+    const d1 = useDeck()
+    d1.startSession('deep', 5, 'listener')
+    d1.nextQuestion()
+    d1.nextQuestion()
+    const savedTurn = d1.currentTurn.value
+
+    // Эмулируем перезагрузку: переимпорт модуля
+    vi.resetModules()
+    const mod2 = await import('@/composables/useDeck?session=' + (Date.now() + 1))
+    const d2 = mod2.useDeck()
+    expect(d2.deckId.value).toBe('deep')
+    expect(d2.orderIndex.value).toBe(5)
+    expect(d2.role.value).toBe('listener')
+    expect(d2.currentTurn.value).toBe(savedTurn)
+  })
+})
+
+describe('useDeck — importState validation', () => {
+  let useDeck
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    useDeck = mod.useDeck
+  })
+
+  it('импортирует валидный state', async () => {
+    const d = useDeck()
+    const file = new File([JSON.stringify({
+      version: 1,
+      deckId: 'deep',
+      orderIndex: 2,
+      currentTurn: 5,
+      role: 'reader',
+      passedIds: ['q1'],
+      skippedIds: ['q2']
+    })], 'state.json', { type: 'application/json' })
+
+    await d.importState(file)
+    expect(d.deckId.value).toBe('deep')
+    expect(d.orderIndex.value).toBe(2)
+    expect(d.currentTurn.value).toBe(5)
+    expect(d.role.value).toBe('reader')
+    expect(d.passedIds.value).toEqual(['q1'])
+    expect(d.skippedIds.value).toEqual(['q2'])
+  })
+
+  it('отклоняет неизвестную колоду', async () => {
+    const d = useDeck()
+    const file = new File([JSON.stringify({
+      deckId: 'unknown',
+      orderIndex: 0,
+      role: 'reader'
+    })], 'state.json')
+
+    await expect(d.importState(file)).rejects.toThrow('Неизвестная колода')
+  })
+
+  it('отклоняет невалидный orderIndex', async () => {
+    const d = useDeck()
+    const file = new File([JSON.stringify({
+      deckId: 'deep',
+      orderIndex: 99,
+      role: 'reader'
+    })], 'state.json')
+
+    await expect(d.importState(file)).rejects.toThrow('orderIndex')
+  })
+
+  it('отклоняет невалидную роль', async () => {
+    const d = useDeck()
+    const file = new File([JSON.stringify({
+      deckId: 'deep',
+      orderIndex: 0,
+      role: 'admin'
+    })], 'state.json')
+
+    await expect(d.importState(file)).rejects.toThrow('роль')
+  })
+
+  it('отклоняет битый JSON', async () => {
+    const d = useDeck()
+    const file = new File(['{not valid json'], 'state.json')
+
+    await expect(d.importState(file)).rejects.toThrow()
+  })
+})
