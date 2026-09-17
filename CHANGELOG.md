@@ -5,6 +5,28 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [4.3.0] — 2026-09-17
+
+### Добавлено
+- **Кэш-стратегия `NetworkFirst` для HTML** с таймаутом 3 секунды: при наличии интернета браузер сначала спрашивает сервер, есть ли свежий `index.html`, и берёт его. Если сеть медленная или отсутствует — fallback на кэш SW. Решает проблему «у одного пользователя старая версия, у другого новая» — оба игрока с интернетом получают актуальный HTML, который подключает актуальные ассеты (с хешем в имени файла).
+- **`StaleWhileRevalidate` для ассетов** (JS/CSS/иконки): быстро из кэша, в фоне проверяем свежую версию. Имена файлов с хешем — при изменении содержимого URL меняется, кэш-мисс → свежая версия.
+- **UI уведомления об обновлении** через `useRegisterSW` (`virtual:pwa-register/vue`): при обнаружении новой версии SW показывается баннер «🔄 Доступна новая версия» с кнопкой «Обновить». `registerType: 'prompt'` — пользователь сам решает, когда перезагрузить, без авто-обновления в середине сессии.
+- **Баннер «Готово к оффлайн»** при первом кэшировании SW — пользователь видит, что приложение можно запускать без интернета.
+- В `workbox` конфигурации: `runtimeCaching` с двумя стратегиями, `navigateFallback: 'index.html'`, expiration rules (HTML — 7 дней/5 записей, ассеты — 30 дней/60 записей).
+
+### Изменено
+- `vite.config.js` — добавлен `workbox.runtimeCaching` с `NetworkFirst` (HTML) и `StaleWhileRevalidate` (ассеты).
+- `src/App.vue` — добавлены `useRegisterSW`, баннеры `needRefresh` и `offlineReady`, кнопки «Обновить» и «Позже».
+
+## [4.2.0] — 2026-09-17
+
+### Добавлено
+- Кнопка «Установить приложение» для Android/Desktop Chrome — перехватывает `beforeinstallprompt`, показывает подсказку с кнопкой «Установить». После установки — баннер «Приложение установлено» на 4 секунды.
+- На iOS Safari — текстовая инструкция «Нажмите Поделиться → На главный экран» (Apple не даёт программно вызвать установку).
+- Запоминание отказа: если пользователь отклонил подсказку (крестик или системный диалог), не показываем снова до ручного сброса `localStorage['install_dismissed']`.
+- Не показывается в standalone-режиме (PWA уже установлено и открыто с иконки) — через `matchMedia('(display-mode: standalone)')` и `navigator.standalone` (iOS).
+- Компонент `src/components/InstallPrompt.vue`, подключён в `App.vue`.
+
 ## [4.1.0] — 2026-09-17
 
 ### Добавлено
@@ -115,7 +137,9 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v4.3.0...HEAD
+[4.3.0]: https://github.com/r3code/random-coffee/releases/tag/v4.3.0
+[4.2.0]: https://github.com/r3code/random-coffee/releases/tag/v4.2.0
 [4.1.0]: https://github.com/r3code/random-coffee/releases/tag/v4.1.0
 [4.0.0]: https://github.com/r3code/random-coffee/releases/tag/v4.0.0
 [3.0.0]: https://github.com/r3code/random-coffee/releases/tag/v3.0.0

@@ -104,6 +104,52 @@ export default defineConfig({
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
+      // ─── Кэш-стратегия: NetworkFirst для навигации (HTML) ────
+      // Решает проблему «у одного пользователя старая версия, у другого новая»:
+      // при наличии интернета браузер сначала спрашивает сервер, есть ли свежий
+      // index.html. Если ответ пришёл за 3 сек — берём его. Если нет (медленная
+      // сеть или оффлайн) — fallback на кэш SW, приложение открывается.
+      // Ассеты (JS/CSS с хешем в имени файла) — precached, обновляются автоматически
+      // при изменении содержимого. UI уведомления об обновлении — в App.vue через
+      // useRegisterSW (registerType: 'prompt' — пользователь сам решает, когда
+      // перезагрузить, без авто-обновления в середине сессии).
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // Навигация (запросы HTML-страниц) — NetworkFirst с таймаутом 3 сек.
+        // Это гарантирует: при наличии сети пользователь получает свежий HTML,
+        // который подключает свежие ассеты (с хешем в имени файла).
+        navigateFallback: 'index.html',
+        runtimeCaching: [
+          {
+            // HTML-навигация: NetworkFirst, таймаут 3 сек, 5 записей в кэше
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-html',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60 * 24 * 7  // 7 дней
+              }
+            }
+          },
+          {
+            // Ассеты (JS/CSS/иконки) — StaleWhileRevalidate: быстро из кэша,
+            // в фоне проверяем свежую версию. Имена файлов с хешем — при
+            // изменении содержимого URL меняется, кэш-мисс → свежая версия.
+            urlPattern: ({ request }) =>
+              ['style', 'script', 'worker', 'image', 'font'].includes(request.destination),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'app-assets',
+              expiration: {
+                maxEntries: 60,
+                maxAgeSeconds: 60 * 60 * 24 * 30  // 30 дней
+              }
+            }
+          }
+        ]
+      },
       devOptions: {
         enabled: false
       }
