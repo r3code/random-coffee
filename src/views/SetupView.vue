@@ -62,32 +62,26 @@
           </button>
         </div>
 
-        <!-- Экспорт/Импорт (только при наличии активной сессии) -->
-        <div v-if="hasSavedSession" class="mb-6 flex gap-4">
-          <button @click="handleExport"
-                  class="flex-1 py-3 bg-blue-500 hover:bg-blue-400 rounded-lg font-bold">
-            📥 Экспорт состояния
-          </button>
-          <label class="flex-1 py-3 bg-purple-500 hover:bg-purple-400 rounded-lg font-bold text-center cursor-pointer">
-            📤 Импорт состояния
-            <input type="file" accept=".json" @change="handleImport" class="hidden" />
-          </label>
-        </div>
-
         <!-- История сессий -->
         <div v-if="sessions.length > 0" class="mb-8">
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">История сессий</h2>
-            <p class="text-sm opacity-80 mb-4">
+            <p class="text-sm opacity-80 mb-2">
               Можно параллельно вести несколько сессий с разными колодами и возвращаться к ним позже.
+            </p>
+            <p class="text-xs opacity-60 mb-4">
+              Хранится не более 20 последних сессий.
             </p>
 
             <div class="space-y-3 max-h-96 overflow-y-auto">
               <div
                 v-for="s in sortedSessions"
                 :key="s.id"
-                class="bg-white/10 rounded-lg p-4 flex items-center gap-4"
-                :class="s.id === activeSessionId ? 'ring-2 ring-yellow-500' : ''"
+                class="bg-white/10 rounded-lg p-4 flex items-center gap-4 transition-all"
+                :class="[
+                  s.id === activeSessionId ? 'ring-2 ring-yellow-500' : '',
+                  highlightedSessionId === s.id ? 'ring-2 ring-emerald-400 bg-emerald-500/20' : ''
+                ]"
               >
                 <!-- Иконка статуса -->
                 <div class="text-2xl shrink-0">
@@ -133,6 +127,13 @@
                     ↻ Снова
                   </button>
                   <button
+                    @click="handleExportSession(s.id)"
+                    class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm font-bold"
+                    aria-label="Экспортировать сессию в файл"
+                  >
+                    ⬇️
+                  </button>
+                  <button
                     @click="confirmDeleteSession(s.id)"
                     class="px-3 py-2 bg-red-500 hover:bg-red-400 rounded-lg text-sm font-bold"
                     aria-label="Удалить сессию"
@@ -141,6 +142,14 @@
                   </button>
                 </div>
               </div>
+            </div>
+
+            <!-- Импорт сессии из файла — внизу блока истории -->
+            <div class="mt-4 pt-4 border-t border-white/10">
+              <label class="block w-full py-3 bg-purple-500 hover:bg-purple-400 rounded-lg font-bold text-center cursor-pointer">
+                📥 Импорт сессии из файла
+                <input type="file" accept=".json" @change="handleImport" class="hidden" />
+              </label>
             </div>
           </div>
         </div>
@@ -293,11 +302,11 @@ const router = useRouter()
 const route = useRoute()
 const {
   hasSavedSession, startSession,
-  exportState, importState, theme, setTheme,
+  importState, theme, setTheme,
   // Реактивные данные сохранённой сессии
   deckId, orderIndex, currentTurn, role, deck, currentOrder,
   // История сессий
-  sessions, activeSessionId, loadSession, deleteSession
+  sessions, activeSessionId, loadSession, deleteSession, exportSession
 } = useDeck()
 
 const availableDecks = Object.values(decks)
@@ -315,6 +324,9 @@ const selectedRole = ref(null)
 const shareParams = ref(null)
 const qrDataUrl = ref('')
 const continueQrDataUrl = ref('')
+// ID сессии, подсвеченной после импорта (для визуального feedback). 2 сек.
+const highlightedSessionId = ref(null)
+let highlightTimer = null
 
 const selectedDeck = computed(() => selectedDeckId.value ? decks[selectedDeckId.value] : null)
 
@@ -469,21 +481,26 @@ function confirmDeleteSession(id) {
   }
 }
 
-function handleExport() {
-  if (!hasSavedSession.value) {
-    alert('Нет сохранённой сессии для экспорта')
-    return
-  }
-  exportState()
+// Экспорт конкретной сессии по id. Имя файла формируется в useDeck:
+// coffee-cards-<deckId>-<orderLetter>-<YYYY-MM-DD>.json
+function handleExportSession(id) {
+  exportSession(id)
 }
 
 async function handleImport(event) {
   const file = event.target.files[0]
   if (!file) return
   try {
-    await importState(file)
-    alert('Состояние успешно импортировано!')
-    router.push('/game')
+    const newId = await importState(file)
+    // Подсветка новой записи на 2 секунды
+    highlightedSessionId.value = newId
+    if (highlightTimer) clearTimeout(highlightTimer)
+    highlightTimer = setTimeout(() => {
+      highlightedSessionId.value = null
+      highlightTimer = null
+    }, 2000)
+    alert('Сессия добавлена в историю')
+    // НЕ переходим в /game — пользователь откроет импортированную через «Открыть»
   } catch (error) {
     alert('Ошибка импорта: ' + error.message)
   }

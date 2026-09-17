@@ -87,7 +87,7 @@
         <!-- ─── Завершение (isFinished) ─────────────────────── -->
         <div v-if="isFinished" class="flex-grow flex flex-col items-center justify-center text-center">
           <h2 class="text-3xl font-bold mb-4">🎉 Сессия завершена!</h2>
-          <p class="mb-6">Вы обсудили все вопросы в этом порядке.</p>
+          <p class="mb-6">Вы обсудили все вопросы в этом наборе.</p>
           <div class="flex gap-4 justify-center">
             <button @click="resetProgressAndStay"
                     class="px-6 py-3 bg-white text-gray-900 rounded-lg font-bold">

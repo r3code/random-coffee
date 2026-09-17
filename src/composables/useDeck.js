@@ -6,6 +6,10 @@ const sessionsKey = 'coffee_sessions'
 const activeSessionIdKey = 'coffee_active_session_id'
 const themeKey = 'theme_preference'
 
+// Лимит на количество хранимых сессий. При превышении самые старые
+// (по updatedAt) удаляются, но активная и только что добавленная защищены.
+const MAX_SESSIONS = 20
+
 // ─── Генерация ID ───────────────────────────────────────────────
 function genId() {
   return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
@@ -32,6 +36,31 @@ function saveSessions(arr) {
   } catch (e) {
     console.error('[coffee-cards] localStorage write failed:', e)
   }
+}
+
+// ─── pruneSessions: ограничивает количество сессий до MAX_SESSIONS ──
+// Удаляет самые старые (по updatedAt), но защищает:
+//   - активную сессию (пользователь с ней работает)
+//   - protectedId — только что добавленную/импортированную (защита от авто-удаления сразу после добавления)
+// Возвращает обрезанный массив.
+function pruneSessions(arr, { protectedId = null } = {}) {
+  if (arr.length <= MAX_SESSIONS) return arr
+  const activeId = loadActiveSessionId()
+  const protect = new Set([protectedId, activeId].filter(Boolean))
+  // Сортируем по updatedAt DESC (свежие первыми), без изменения исходного массива
+  const sorted = [...arr].sort((a, b) =>
+    new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
+  )
+  // Берём top MAX_SESSIONS, но гарантируем что защищённые там есть
+  const keep = new Set()
+  for (const s of sorted) {
+    if (s.id && protect.has(s.id)) keep.add(s.id)
+  }
+  for (const s of sorted) {
+    if (keep.size >= MAX_SESSIONS) break
+    keep.add(s.id)
+  }
+  return arr.filter(s => keep.has(s.id))
 }
 
 function loadActiveSessionId() {
@@ -289,6 +318,8 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
     completed: false
   }
   sessions.value = [newSession, ...sessions.value]
+  // Применяем лимит: не более MAX_SESSIONS, защищаем новую (она становится активной).
+  sessions.value = pruneSessions(sessions.value, { protectedId: id })
   saveSessions(sessions.value)
   activeSessionId.value = id
   saveActiveSessionId(id)
@@ -423,27 +454,55 @@ function resetProgress() {
 }
 
 // ─── Export / Import ────────────────────────────────────────────
-function exportState() {
+
+// exportSession: экспортирует конкретную сессию по её id.
+// Имя файла: coffee-cards-<deckId>-<orderLetter>-<YYYY-MM-DD>.json
+// Если id не указан — экспортирует активную.
+function exportSession(id) {
+  const s = id
+    ? sessions.value.find(x => x.id === id)
+    : activeSession.value
+  if (!s) {
+    console.warn('[coffee-cards] exportSession: session not found', id)
+    return
+  }
   const state = {
     version: SCHEMA_VERSION,
-    activeSessionId: activeSessionId.value,
-    deckId: deckId.value,
-    orderIndex: orderIndex.value,
-    currentTurn: currentTurn.value,
-    role: role.value,
-    passedIds: passedIds.value,
-    skippedIds: skippedIds.value,
+    sessionId: s.id,
+    deckId: s.deckId,
+    orderIndex: s.orderIndex,
+    currentTurn: s.currentTurn,
+    role: s.role,
+    passedIds: s.passedIds || [],
+    skippedIds: s.skippedIds || [],
+    maxReachedTurn: s.maxReachedTurn ?? s.currentTurn ?? 0,
+    completed: !!s.completed,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
     exportedAt: new Date().toISOString()
   }
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
+  const orderLetter = decks[s.deckId]?.orders?.[s.orderIndex]?.name || '?'
+  const d = new Date()
+  const dateStr = d.toISOString().slice(0, 10)  // YYYY-MM-DD
   const a = document.createElement('a')
   a.href = url
-  a.download = `coffee-cards-state-${Date.now()}.json`
+  a.download = `coffee-cards-${s.deckId}-${orderLetter}-${dateStr}.json`
   a.click()
   URL.revokeObjectURL(url)
 }
 
+// exportState: обратная совместимость — экспорт активной сессии.
+// В UI больше не используется, но оставлено для тестов.
+function exportState() {
+  exportSession(activeSessionId.value)
+}
+
+// importState: создаёт НОВУЮ запись в истории (НЕ активную).
+// Активная сессия (если была) не меняется — пользователь может открыть
+// импортированную через "Открыть" в истории.
+// Возвращает id созданной сессии (resolve(id)) или reject(error).
 function importState(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -459,33 +518,33 @@ function importState(file) {
         if (!['reader', 'listener'].includes(state.role)) {
           throw new Error('Некорректная роль')
         }
-        // Создаём новую сессию из импортированного state
+        const total = decks[state.deckId]?.orders?.[state.orderIndex]?.sequence.length ?? 0
+        const turn = Math.max(0, state.currentTurn || 0)
+        const completed = total > 0 && turn >= total
+
+        // Создаём новую сессию — НЕ активную.
         const id = genId()
         const now = new Date().toISOString()
         const newSession = {
           id,
           deckId: state.deckId,
           orderIndex: state.orderIndex,
-          currentTurn: Math.max(0, state.currentTurn || 0),
+          currentTurn: turn,
           role: state.role,
           passedIds: Array.isArray(state.passedIds) ? state.passedIds : [],
           skippedIds: Array.isArray(state.skippedIds) ? state.skippedIds : [],
-          createdAt: now,
+          maxReachedTurn: state.maxReachedTurn ?? turn,
+          createdAt: state.createdAt || now,
           updatedAt: now,
-          completed: false
+          completed
         }
         sessions.value = [newSession, ...sessions.value]
+        // Применяем лимит, защищаем новую сессию от авто-удаления.
+        // Активную не трогаем — она остаётся активной (activeSessionId не меняется).
+        sessions.value = pruneSessions(sessions.value, { protectedId: id })
         saveSessions(sessions.value)
-        activeSessionId.value = id
-        saveActiveSessionId(id)
-
-        deckId.value = state.deckId
-        orderIndex.value = state.orderIndex
-        currentTurn.value = Math.max(0, state.currentTurn || 0)
-        role.value = state.role
-        passedIds.value = Array.isArray(state.passedIds) ? state.passedIds : []
-        skippedIds.value = Array.isArray(state.skippedIds) ? state.skippedIds : []
-        resolve(true)
+        // Активную НЕ меняем — пользователь откроет импортированную через UI.
+        resolve(id)
       } catch (error) {
         reject(error)
       }
@@ -504,7 +563,7 @@ export function useDeck() {
   return {
     // sessions history
     sessions, activeSessionId, activeSession,
-    loadSession, deleteSession,
+    loadSession, deleteSession, exportSession,
     // state
     deck, deckId, orderIndex, currentOrder, currentQuestion, currentTurn,
     role, amIReading, passedIds, skippedIds,
