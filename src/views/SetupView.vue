@@ -280,6 +280,14 @@
             </div>
 
             <div v-else>
+              <!-- Пометка-инструкция над QR-кодом: что делать и зачем -->
+              <div class="flex items-start gap-2 text-left mb-4 px-2">
+                <span class="text-base shrink-0 mt-0.5 opacity-70" aria-hidden="true">ℹ️</span>
+                <p class="text-xs opacity-70 leading-snug">
+                  Партнёр сканирует QR-код и сразу попадает в ту же сессию. Потом нажмите «Начать сессию».
+                </p>
+              </div>
+
               <div v-if="qrDataUrl" class="inline-block bg-white p-3 rounded-lg">
                 <img :src="qrDataUrl" alt="QR-код со ссылкой на сессию" class="w-48 h-48" />
               </div>
