@@ -77,40 +77,46 @@
               <div
                 v-for="s in sortedSessions"
                 :key="s.id"
-                class="bg-white/10 rounded-lg p-4 flex items-center gap-4 transition-all"
+                class="bg-white/10 rounded-lg p-4 transition-all"
                 :class="[
                   s.id === activeSessionId ? 'ring-2 ring-yellow-500' : '',
                   highlightedSessionId === s.id ? 'ring-2 ring-emerald-400 bg-emerald-500/20' : ''
                 ]"
               >
-                <!-- Иконка статуса -->
-                <div class="text-2xl shrink-0">
-                  <span v-if="isSessionFinished(s)">✅</span>
-                  <span v-else>▶️</span>
+                <!-- Первый ряд: иконка статуса + название + дата (текст
+                     не обрезается, занимает полную ширину). -->
+                <div class="flex items-start gap-3">
+                  <div class="text-xl shrink-0 leading-6">
+                    <span v-if="isSessionFinished(s)">✅</span>
+                    <span v-else>▶️</span>
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <div class="font-bold leading-snug break-words">
+                      {{ sessionDeckName(s) }} • порядок {{ sessionOrderName(s) }}
+                    </div>
+                    <div class="text-xs opacity-70 mt-1">
+                      {{ isSessionFinished(s)
+                        ? `Завершена • ${formatDate(s.updatedAt)}`
+                        : `В процессе • вопрос ${(s.currentTurn || 0) + 1} из ${sessionTotal(s)} • ${formatDate(s.updatedAt)}`
+                      }}
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Инфо -->
-                <div class="flex-grow min-w-0">
-                  <div class="font-bold truncate">
-                    {{ sessionDeckName(s) }} • порядок {{ sessionOrderName(s) }}
-                  </div>
-                  <div class="text-xs opacity-70 mt-1">
-                    {{ isSessionFinished(s)
-                      ? `Завершена • ${formatDate(s.updatedAt)}`
-                      : `В процессе • вопрос ${(s.currentTurn || 0) + 1} из ${sessionTotal(s)} • ${formatDate(s.updatedAt)}`
-                    }}
-                  </div>
-                </div>
-
-                <!-- Кнопки -->
-                <div class="flex gap-2 shrink-0">
-                  <button
+                <!-- Второй ряд: бейдж/кнопка действия + утилитарные кнопки.
+                     На мобильных кнопки выносятся отдельной строкой, чтобы
+                     название сессии читалось целиком. На десктопе остаётся
+                     inline, но с flex-wrap на случай узкого контейнера. -->
+                <div class="flex items-center gap-2 mt-3 flex-wrap">
+                  <!-- Активная сессия: бейдж (не кнопка), без рамки/фона,
+                       визуально отличается от интерактивных кнопок. -->
+                  <span
                     v-if="s.id === activeSessionId && !isSessionFinished(s)"
-                    disabled
-                    class="px-3 py-2 bg-yellow-500/30 text-yellow-300 cursor-default rounded-lg text-sm font-bold"
+                    class="text-emerald-400 text-xs font-bold whitespace-nowrap px-1 select-none"
+                    title="Эта сессия открыта в игре"
                   >
-                    Активна
-                  </button>
+                    ● Активна
+                  </span>
                   <button
                     v-else-if="!isSessionFinished(s)"
                     @click="openSession(s.id)"
@@ -122,24 +128,31 @@
                     v-else
                     @click="restartCompletedSession(s)"
                     class="px-3 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg text-sm font-bold"
+                    title="Начать новую сессию с этими же параметрами"
                     aria-label="Начать новую сессию с теми же параметрами"
                   >
                     ↻ Снова
                   </button>
-                  <button
-                    @click="handleExportSession(s.id)"
-                    class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm font-bold"
-                    aria-label="Экспортировать сессию в файл"
-                  >
-                    ⬇️
-                  </button>
-                  <button
-                    @click="confirmDeleteSession(s.id)"
-                    class="px-3 py-2 bg-red-500 hover:bg-red-400 rounded-lg text-sm font-bold"
-                    aria-label="Удалить сессию"
-                  >
-                    🗑️
-                  </button>
+
+                  <!-- Утилитарные кнопки справа, прижимаются вправо через ml-auto -->
+                  <div class="flex items-center gap-2 ml-auto">
+                    <button
+                      @click="handleExportSession(s.id)"
+                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-base font-bold leading-none transition-colors"
+                      title="Экспортировать в файл"
+                      aria-label="Экспортировать сессию в файл"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      @click="confirmDeleteSession(s.id)"
+                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white text-gray-300 rounded-lg text-base font-bold leading-none transition-colors"
+                      title="Удалить сессию"
+                      aria-label="Удалить сессию"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -287,6 +300,26 @@
           </button>
         </div>
       </template>
+
+      <!-- Footer: версия, коммит, ссылка на GitHub -->
+      <footer class="mt-8 pt-6 border-t border-white/10 text-center text-xs opacity-60">
+        <div class="flex items-center justify-center gap-3 flex-wrap">
+          <span>v{{ appVersion }}</span>
+          <span v-if="commitHash" class="font-mono">
+            · <a :href="commitUrl" target="_blank" rel="noopener"
+                 class="hover:opacity-100 hover:text-yellow-400 transition-colors"
+                 :title="commitDate ? `Коммит от ${formatCommitDate(commitDate)}` : 'Открыть коммит на GitHub'">
+              {{ commitHash }}
+            </a>
+          </span>
+          <span>·</span>
+          <a href="https://github.com/r3code/random-coffee" target="_blank" rel="noopener"
+             class="hover:opacity-100 hover:text-yellow-400 transition-colors"
+             title="Открыть репозиторий на GitHub">
+            GitHub ↗
+          </a>
+        </div>
+      </footer>
     </div>
   </div>
 </template>
@@ -297,6 +330,31 @@ import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { useDeck, buildShareUrl, parseShareUrl } from '@/composables/useDeck'
 import { decks } from '@/data/decks'
+
+// ─── Версия приложения и git-коммит (инжектируются через vite.config.js define) ──
+// Если запускается не через Vite (например, в тестах) — fallback на пустые строки.
+// @ts-ignore — глобальные define-константы, объявлены в vite.config.js
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+// @ts-ignore
+const commitHash = typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : ''
+// @ts-ignore
+const commitDate = typeof __COMMIT_DATE__ !== 'undefined' ? __COMMIT_DATE__ : ''
+
+const GITHUB_REPO_URL = 'https://github.com/r3code/random-coffee'
+const commitUrl = computed(() =>
+  commitHash ? `${GITHUB_REPO_URL}/commit/${commitHash}` : GITHUB_REPO_URL
+)
+
+function formatCommitDate(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) +
+           ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
 
 const router = useRouter()
 const route = useRoute()

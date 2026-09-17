@@ -15,6 +15,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Полная история для git show (определение даты коммита в vite.config.js)
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,6 +35,8 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          # GITHUB_SHA автоматически доступен в GitHub Actions —
+          # vite.config.js использует его для __COMMIT_HASH__.
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -39,3 +44,4 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
