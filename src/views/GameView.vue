@@ -9,8 +9,8 @@
     <!-- Шапка: скрыта когда isFinished -->
     <header v-if="!isFinished" class="text-center mb-6" role="banner">
       <div class="flex justify-between items-center mb-2">
-        <button @click="goBack" class="text-sm opacity-70 hover:opacity-100" aria-label="Вернуться к настройкам">
-          ← Назад
+        <button @click="goBack" class="text-sm opacity-70 hover:opacity-100" aria-label="На главную">
+          ← На главную
         </button>
         <div class="text-sm opacity-80" aria-live="polite">
           {{ currentOrder?.name }} • Вопрос {{ currentTurn + 1 }} из {{ currentOrder?.sequence.length }}

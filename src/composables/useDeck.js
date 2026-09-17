@@ -51,6 +51,11 @@ function migrateV1ToV2() {
     const old = JSON.parse(oldRaw)
     if (!old.deckId || old.orderIndex === null || !old.role) return
 
+    // Вычисляем completed на основе currentTurn vs длины последовательности,
+    // иначе завершённая v1 сессия мигрирует как "В процессе" — баг.
+    const total = decks[old.deckId]?.orders?.[old.orderIndex]?.sequence.length ?? 0
+    const completed = total > 0 && (old.currentTurn || 0) >= total
+
     const id = genId()
     const session = {
       id,
@@ -62,7 +67,7 @@ function migrateV1ToV2() {
       skippedIds: old.skippedIds || [],
       createdAt: old.updatedAt || new Date().toISOString(),
       updatedAt: old.updatedAt || new Date().toISOString(),
-      completed: false
+      completed
     }
     saveSessions([session])
     saveActiveSessionId(id)
@@ -134,33 +139,56 @@ const isFinished = computed(() => {
 
 // hasSavedSession: true только если есть АКТИВНАЯ (не завершённая) сессия.
 // Завершённые сессии остаются в истории, но не показываются в блоке "Продолжить".
+// Защитная проверка: если currentTurn >= sequence.length, тоже считаем завершённой.
 const hasSavedSession = computed(() => {
   if (!activeSession.value) return false
   if (activeSession.value.completed) return false
   if (!deckId.value || orderIndex.value === null || !role.value) return false
+  // Defensive: если currentTurn >= длины — сессия фактически завершена
+  if (currentOrder.value && currentTurn.value >= currentOrder.value.sequence.length) return false
   return true
 })
 
+// ─── isLoading: флаг для блокировки watch во время loadSession ──
+// Без этого watch с flush:'sync' срабатывает на КАЖДОЕ изменение ref
+// в loadSession (deckId → orderIndex → ...) и на промежуточных шагах
+// пишет в sessions[idx] мусор (например, completed=false для завершённой
+// сессии, потому что currentOrder ещё не вычислен правильно).
+let isLoading = false
+
+// ─── persistActiveSession: вынесенная логика записи в sessions ──
+// Используется и из watch, и из loadSession (после загрузки refs).
+function persistActiveSession() {
+  if (!activeSessionId.value) return
+  const idx = sessions.value.findIndex(s => s.id === activeSessionId.value)
+  if (idx === -1) return
+  // Вычисляем completed напрямую из refs (не через isFinished computed,
+  // чтобы избежать гонок при частичных обновлениях).
+  const total = decks[deckId.value]?.orders?.[orderIndex.value]?.sequence.length ?? 0
+  const completed = total > 0 && currentTurn.value >= total
+  sessions.value[idx] = {
+    ...sessions.value[idx],
+    deckId: deckId.value,
+    orderIndex: orderIndex.value,
+    currentTurn: currentTurn.value,
+    role: role.value,
+    passedIds: [...passedIds.value],
+    skippedIds: [...skippedIds.value],
+    completed,
+    updatedAt: new Date().toISOString()
+  }
+  saveSessions(sessions.value)
+}
+
 // ─── Persistence: сохраняем активную сессию при изменении refs ───
-// flush: 'sync' — для надёжной синхронизации с localStorage
+// flush: 'sync' — для надёжной синхронизации с localStorage.
+// Пропускаем во время loadSession (там persistActiveSession вызывается
+// вручную в конце).
 watch(
   [deckId, orderIndex, currentTurn, role, passedIds, skippedIds],
   () => {
-    if (!activeSessionId.value) return
-    const idx = sessions.value.findIndex(s => s.id === activeSessionId.value)
-    if (idx === -1) return
-    sessions.value[idx] = {
-      ...sessions.value[idx],
-      deckId: deckId.value,
-      orderIndex: orderIndex.value,
-      currentTurn: currentTurn.value,
-      role: role.value,
-      passedIds: [...passedIds.value],
-      skippedIds: [...skippedIds.value],
-      completed: isFinished.value,
-      updatedAt: new Date().toISOString()
-    }
-    saveSessions(sessions.value)
+    if (isLoading) return
+    persistActiveSession()
   },
   { deep: true, flush: 'sync' }
 )
@@ -225,27 +253,41 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
   activeSessionId.value = id
   saveActiveSessionId(id)
 
-  // Обновляем локальные refs
+  // Обновляем локальные refs. Блокируем watch через isLoading, чтобы
+  // на промежуточных шагах не писать в sessions[idx] мусор (completed=true
+  // при текущем=0, но old=не-0 — может быть).
+  isLoading = true
   deckId.value = selectedDeckId
   orderIndex.value = selectedOrderIndex
   role.value = selectedRole
   currentTurn.value = turn
   passedIds.value = []
   skippedIds.value = []
+  isLoading = false
+  // Записываем финальное состояние в sessions[idx]
+  persistActiveSession()
 }
 
-// loadSession: переключается на существующую сессию из истории
+// loadSession: переключается на существующую сессию из истории.
+// Блокируем watch через isLoading, чтобы на промежуточных шагах
+// (deckId установлен, orderIndex ещё старый) не записывался мусор
+// в sessions[idx]. В конце вручную вызываем persistActiveSession,
+// чтобы запись была консистентна с текущими refs.
 function loadSession(id) {
   const s = sessions.value.find(x => x.id === id)
   if (!s) return false
+  isLoading = true
   activeSessionId.value = id
-  saveActiveSessionId(id)
   deckId.value = s.deckId
   orderIndex.value = s.orderIndex
   role.value = s.role
   currentTurn.value = s.currentTurn
   passedIds.value = [...(s.passedIds || [])]
   skippedIds.value = [...(s.skippedIds || [])]
+  isLoading = false
+  // Синхронизируем запись с текущими refs (важно для завершённых сессий,
+  // у которых completed мог быть false из-за старого бага — сейчас исправится).
+  persistActiveSession()
   return true
 }
 
@@ -300,12 +342,16 @@ function resetProgress() {
   }
   activeSessionId.value = null
   saveActiveSessionId(null)
+  // Блокируем watch на время сброса refs (хоть activeId уже null,
+  // это двойная защита от возможных гонок).
+  isLoading = true
   currentTurn.value = 0
   passedIds.value = []
   skippedIds.value = []
   deckId.value = null
   orderIndex.value = null
   role.value = null
+  isLoading = false
 }
 
 // ─── Export / Import ────────────────────────────────────────────

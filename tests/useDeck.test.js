@@ -620,6 +620,77 @@ describe('useDeck — sessions history', () => {
     expect(d.sessions.value[0].skippedIds).toEqual(['q2'])
     expect(d.activeSessionId.value).toBe(d.sessions.value[0].id)
   })
+
+  it('migrateV1ToV2: завершённая v1 сессия (currentTurn >= length) помечается completed', async () => {
+    localStorage.setItem('game_state', JSON.stringify({
+      version: 1,
+      deckId: 'work',  // 10 вопросов
+      orderIndex: 0,
+      currentTurn: 10,  // finished
+      role: 'reader',
+      passedIds: [],
+      skippedIds: [],
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    }))
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+    expect(d.sessions.value).toHaveLength(1)
+    expect(d.sessions.value[0].completed).toBe(true)
+    expect(d.sessions.value[0].currentTurn).toBe(10)
+  })
+
+  it('loadSession не портит другие сессии при переключении', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    d.nextQuestion()  // turn = 2
+    const firstId = d.activeSessionId.value
+    const firstPassedIds = [...d.passedIds.value]
+
+    d.startSession('work', 1, 'listener')  // turn = 0, different deck
+    const secondId = d.activeSessionId.value
+
+    // Переключаемся на первую
+    d.loadSession(firstId)
+
+    expect(d.activeSessionId.value).toBe(firstId)
+    expect(d.deckId.value).toBe('deep')
+    expect(d.currentTurn.value).toBe(2)
+    expect(d.passedIds.value).toEqual(firstPassedIds)
+
+    // Вторая сессия не испорчена
+    const secondSession = d.sessions.value.find(s => s.id === secondId)
+    expect(secondSession.deckId).toBe('work')
+    expect(secondSession.currentTurn).toBe(0)
+    expect(secondSession.passedIds).toEqual([])
+    expect(secondSession.completed).toBe(false)
+  })
+
+  it('loadSession корректно сохраняет completed=true для завершённой сессии', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')  // 10 вопросов
+    for (let i = 0; i < 10; i++) d.nextQuestion()
+    const firstId = d.activeSessionId.value
+    expect(d.sessions.value.find(s => s.id === firstId).completed).toBe(true)
+
+    d.startSession('deep', 0, 'listener')  // другая сессия
+
+    // Переключаемся на завершённую
+    d.loadSession(firstId)
+
+    const firstSession = d.sessions.value.find(s => s.id === firstId)
+    expect(firstSession.completed).toBe(true)
+    expect(firstSession.currentTurn).toBe(10)
+  })
+
+  it('hasSavedSession: false если currentTurn >= sequence.length (defensive)', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')  // 10 вопросов
+    for (let i = 0; i < 10; i++) d.nextQuestion()
+    // currentTurn = 10, sequence.length = 10 → isFinished, hasSavedSession false
+    expect(d.hasSavedSession.value).toBe(false)
+  })
 })
 
 describe('useDeck — importState validation', () => {
