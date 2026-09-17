@@ -1,43 +1,98 @@
 import { ref, computed, watch } from 'vue'
 import { decks, deckIds } from '@/data/decks'
 
-const SCHEMA_VERSION = 1
-const stateKey = 'game_state'
+const SCHEMA_VERSION = 2  // v2: добавилась история сессий
+const sessionsKey = 'coffee_sessions'
+const activeSessionIdKey = 'coffee_active_session_id'
 const themeKey = 'theme_preference'
 
-// ─── Migration & load ───────────────────────────────────────────
-export function migrate(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  if (!raw.version) {
-    raw.version = 1
-    raw.passedIds = raw.passedIds || []
-    raw.skippedIds = raw.skippedIds || []
-  }
-  return raw
+// ─── Генерация ID ───────────────────────────────────────────────
+function genId() {
+  return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
 }
 
-function loadState() {
+// ─── Sessions storage ────────────────────────────────────────────
+function loadSessions() {
   try {
-    const raw = localStorage.getItem(stateKey)
-    if (!raw) return {}
-    return migrate(JSON.parse(raw))
+    const raw = localStorage.getItem(sessionsKey)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr
   } catch (e) {
-    console.warn('[coffee-cards] Corrupted game_state, resetting:', e)
-    localStorage.removeItem(stateKey)
-    return {}
+    console.warn('[coffee-cards] Corrupted sessions, resetting:', e)
+    localStorage.removeItem(sessionsKey)
+    return []
   }
 }
+
+function saveSessions(arr) {
+  try {
+    localStorage.setItem(sessionsKey, JSON.stringify(arr))
+  } catch (e) {
+    console.error('[coffee-cards] localStorage write failed:', e)
+  }
+}
+
+function loadActiveSessionId() {
+  return localStorage.getItem(activeSessionIdKey) || null
+}
+
+function saveActiveSessionId(id) {
+  if (id) localStorage.setItem(activeSessionIdKey, id)
+  else localStorage.removeItem(activeSessionIdKey)
+}
+
+// ─── Migration from v1 (single game_state) ──────────────────────
+function migrateV1ToV2() {
+  try {
+    const oldRaw = localStorage.getItem('game_state')
+    if (!oldRaw) return
+    const old = JSON.parse(oldRaw)
+    if (!old.deckId || old.orderIndex === null || !old.role) return
+
+    const id = genId()
+    const session = {
+      id,
+      deckId: old.deckId,
+      orderIndex: old.orderIndex,
+      currentTurn: old.currentTurn || 0,
+      role: old.role,
+      passedIds: old.passedIds || [],
+      skippedIds: old.skippedIds || [],
+      createdAt: old.updatedAt || new Date().toISOString(),
+      updatedAt: old.updatedAt || new Date().toISOString(),
+      completed: false
+    }
+    saveSessions([session])
+    saveActiveSessionId(id)
+    localStorage.removeItem('game_state')
+    console.log('[coffee-cards] Migrated v1 state to v2 session')
+  } catch (e) {
+    console.warn('[coffee-cards] v1→v2 migration failed:', e)
+  }
+}
+
+// ─── Инициализация ──────────────────────────────────────────────
+migrateV1ToV2()
+
+const sessions = ref(loadSessions())
+const activeSessionId = ref(loadActiveSessionId())
 
 // ─── Module-level refs (SINGLETON) ───────────────────────────────
-const savedState = loadState()
+// Активная сессия — это запись из sessions с id === activeSessionId
+const activeSession = computed(() => {
+  if (!activeSessionId.value) return null
+  return sessions.value.find(s => s.id === activeSessionId.value) || null
+})
 
-const deckId       = ref(savedState.deckId || null)
-const orderIndex   = ref(savedState.orderIndex ?? null)
-const currentTurn  = ref(savedState.currentTurn || 0)
-const role         = ref(savedState.role || null)
-const passedIds    = ref(savedState.passedIds || [])
-const skippedIds   = ref(savedState.skippedIds || [])
-const theme        = ref(localStorage.getItem(themeKey) || 'auto')
+const deckId      = ref(activeSession.value?.deckId ?? null)
+const orderIndex  = ref(activeSession.value?.orderIndex ?? null)
+const currentTurn = ref(activeSession.value?.currentTurn ?? 0)
+const role        = ref(activeSession.value?.role ?? null)
+const passedIds   = ref(activeSession.value?.passedIds ? [...activeSession.value.passedIds] : [])
+const skippedIds  = ref(activeSession.value?.skippedIds ? [...activeSession.value.skippedIds] : [])
+const theme       = ref(localStorage.getItem(themeKey) || 'auto')
 
 // ─── Derived ────────────────────────────────────────────────────
 const deck = computed(() => deckId.value ? decks[deckId.value] : null)
@@ -59,23 +114,16 @@ const amIReading = computed(() => {
   return role.value === 'reader' ? isEvenTurn : !isEvenTurn
 })
 
-// isAnswered: текущий вопрос уже отвечен (есть в passedIds).
-// Используется для пометки "✅ Отвечен ранее" при возврате назад.
 const isAnswered = computed(() => {
   return !!currentQuestion.value && passedIds.value.includes(currentQuestion.value.id)
 })
 
-// isSkipped: текущий вопрос был пропущен, НО не отвечен после пропуска.
-// Приоритет: если потом ответили (isAnswered=true) — это уже не "пропущен".
 const isSkipped = computed(() => {
   if (!currentQuestion.value) return false
   const id = currentQuestion.value.id
   return skippedIds.value.includes(id) && !passedIds.value.includes(id)
 })
 
-// Актуальный счётчик пропусков: только те пропуски, которые не "перекрыты"
-// последующим ответом. Если пропустили, потом вернулись и ответили —
-// из счётчика пропусков вычитается.
 const activeSkippedCount = computed(() => {
   return skippedIds.value.filter(id => !passedIds.value.includes(id)).length
 })
@@ -84,31 +132,42 @@ const isFinished = computed(() => {
   return !!currentOrder.value && currentTurn.value >= currentOrder.value.sequence.length
 })
 
-// ─── Persistence ────────────────────────────────────────────────
-// flush: 'sync' — чтобы state в localStorage всегда был консистентен
-// с refs после любой операции (важно для тестов и для надёжной
-// работы hasSavedSession() сразу после startSession).
+// hasSavedSession: true только если есть АКТИВНАЯ (не завершённая) сессия.
+// Завершённые сессии остаются в истории, но не показываются в блоке "Продолжить".
+const hasSavedSession = computed(() => {
+  if (!activeSession.value) return false
+  if (activeSession.value.completed) return false
+  if (!deckId.value || orderIndex.value === null || !role.value) return false
+  return true
+})
+
+// ─── Persistence: сохраняем активную сессию при изменении refs ───
+// flush: 'sync' — для надёжной синхронизации с localStorage
 watch(
   [deckId, orderIndex, currentTurn, role, passedIds, skippedIds],
   () => {
-    const state = {
-      version: SCHEMA_VERSION,
+    if (!activeSessionId.value) return
+    const idx = sessions.value.findIndex(s => s.id === activeSessionId.value)
+    if (idx === -1) return
+    sessions.value[idx] = {
+      ...sessions.value[idx],
       deckId: deckId.value,
       orderIndex: orderIndex.value,
       currentTurn: currentTurn.value,
       role: role.value,
-      passedIds: passedIds.value,
-      skippedIds: skippedIds.value,
+      passedIds: [...passedIds.value],
+      skippedIds: [...skippedIds.value],
+      completed: isFinished.value,
       updatedAt: new Date().toISOString()
     }
-    try {
-      localStorage.setItem(stateKey, JSON.stringify(state))
-    } catch (e) {
-      console.error('[coffee-cards] localStorage write failed:', e)
-    }
+    saveSessions(sessions.value)
   },
   { deep: true, flush: 'sync' }
 )
+
+watch(activeSessionId, (id) => {
+  saveActiveSessionId(id)
+})
 
 watch(theme, (t) => {
   localStorage.setItem(themeKey, t)
@@ -135,25 +194,77 @@ function applyTheme(t) {
   }
 }
 
-// Применяем тему только в браузере (не в SSR/тестах)
 if (typeof window !== 'undefined' && window.matchMedia) {
   applyTheme(theme.value)
 }
 
 // ─── Actions ────────────────────────────────────────────────────
-// startSession: опциональный startTurn для продолжения с конкретного вопроса
-// (используется при открытии share-ссылки с ?turn=N)
+// startSession: создаёт НОВУЮ сессию в истории, делает её активной.
+// Старая активная остаётся в истории как неактивная.
 function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTurn = 0) {
+  const total = decks[selectedDeckId]?.orders[selectedOrderIndex]?.sequence.length ?? 0
+  const turn = (typeof startTurn === 'number' && startTurn >= 0 && startTurn < total)
+    ? startTurn : 0
+
+  const id = genId()
+  const now = new Date().toISOString()
+  const newSession = {
+    id,
+    deckId: selectedDeckId,
+    orderIndex: selectedOrderIndex,
+    currentTurn: turn,
+    role: selectedRole,
+    passedIds: [],
+    skippedIds: [],
+    createdAt: now,
+    updatedAt: now,
+    completed: false
+  }
+  sessions.value = [newSession, ...sessions.value]
+  saveSessions(sessions.value)
+  activeSessionId.value = id
+  saveActiveSessionId(id)
+
+  // Обновляем локальные refs
   deckId.value = selectedDeckId
   orderIndex.value = selectedOrderIndex
   role.value = selectedRole
-  // Валидация startTurn — не выходим за пределы последовательности
-  const total = decks[selectedDeckId]?.orders[selectedOrderIndex]?.sequence.length ?? 0
-  currentTurn.value = (typeof startTurn === 'number' && startTurn >= 0 && startTurn < total)
-    ? startTurn
-    : 0
+  currentTurn.value = turn
   passedIds.value = []
   skippedIds.value = []
+}
+
+// loadSession: переключается на существующую сессию из истории
+function loadSession(id) {
+  const s = sessions.value.find(x => x.id === id)
+  if (!s) return false
+  activeSessionId.value = id
+  saveActiveSessionId(id)
+  deckId.value = s.deckId
+  orderIndex.value = s.orderIndex
+  role.value = s.role
+  currentTurn.value = s.currentTurn
+  passedIds.value = [...(s.passedIds || [])]
+  skippedIds.value = [...(s.skippedIds || [])]
+  return true
+}
+
+// deleteSession: удаляет сессию из истории
+function deleteSession(id) {
+  sessions.value = sessions.value.filter(s => s.id !== id)
+  saveSessions(sessions.value)
+  // Если удалили активную — сбрасываем активную
+  if (activeSessionId.value === id) {
+    activeSessionId.value = null
+    saveActiveSessionId(null)
+    deckId.value = null
+    orderIndex.value = null
+    role.value = null
+    currentTurn.value = 0
+    passedIds.value = []
+    skippedIds.value = []
+  }
+  return true
 }
 
 function nextQuestion() {
@@ -165,37 +276,43 @@ function nextQuestion() {
 function prevQuestion() {
   if (currentTurn.value <= 0) return
   currentTurn.value--
-  // НЕ удаляем из passedIds/skippedIds — это историческая запись.
-  // isSkipped показывает пометку, если текущий вопрос был пропущен ранее.
 }
 
 function skipQuestion() {
   if (!currentQuestion.value) return
   skippedIds.value.push(currentQuestion.value.id)
-  currentTurn.value++
+  currentTurn.value += 2
 }
 
+// resetProgress: сбрасывает АКТИВНУЮ сессию (но сохраняет в истории)
 function resetProgress() {
+  // Если была активная сессия — помечаем её как завершённую в истории
+  if (activeSessionId.value) {
+    const idx = sessions.value.findIndex(s => s.id === activeSessionId.value)
+    if (idx !== -1) {
+      sessions.value[idx] = {
+        ...sessions.value[idx],
+        completed: true,
+        updatedAt: new Date().toISOString()
+      }
+      saveSessions(sessions.value)
+    }
+  }
+  activeSessionId.value = null
+  saveActiveSessionId(null)
   currentTurn.value = 0
   passedIds.value = []
   skippedIds.value = []
   deckId.value = null
   orderIndex.value = null
   role.value = null
-  localStorage.removeItem(stateKey)
 }
-
-// Computed на основе реактивных refs, а не прямой читки localStorage.
-// Иначе Vue не отследит изменение и не ре-рендерит шаблон после resetProgress()
-// (баг: кнопка "Новая" внешне не срабатывала).
-const hasSavedSession = computed(() => {
-  return !!(deckId.value && orderIndex.value !== null && orderIndex.value !== undefined && role.value)
-})
 
 // ─── Export / Import ────────────────────────────────────────────
 function exportState() {
   const state = {
     version: SCHEMA_VERSION,
+    activeSessionId: activeSessionId.value,
     deckId: deckId.value,
     orderIndex: orderIndex.value,
     currentTurn: currentTurn.value,
@@ -228,6 +345,26 @@ function importState(file) {
         if (!['reader', 'listener'].includes(state.role)) {
           throw new Error('Некорректная роль')
         }
+        // Создаём новую сессию из импортированного state
+        const id = genId()
+        const now = new Date().toISOString()
+        const newSession = {
+          id,
+          deckId: state.deckId,
+          orderIndex: state.orderIndex,
+          currentTurn: Math.max(0, state.currentTurn || 0),
+          role: state.role,
+          passedIds: Array.isArray(state.passedIds) ? state.passedIds : [],
+          skippedIds: Array.isArray(state.skippedIds) ? state.skippedIds : [],
+          createdAt: now,
+          updatedAt: now,
+          completed: false
+        }
+        sessions.value = [newSession, ...sessions.value]
+        saveSessions(sessions.value)
+        activeSessionId.value = id
+        saveActiveSessionId(id)
+
         deckId.value = state.deckId
         orderIndex.value = state.orderIndex
         currentTurn.value = Math.max(0, state.currentTurn || 0)
@@ -251,12 +388,18 @@ function setTheme(t) {
 // ─── Exported API ──────────────────────────────────────────────
 export function useDeck() {
   return {
+    // sessions history
+    sessions, activeSessionId, activeSession,
+    loadSession, deleteSession,
+    // state
     deck, deckId, orderIndex, currentOrder, currentQuestion, currentTurn,
     role, amIReading, passedIds, skippedIds,
     isAnswered, isSkipped, activeSkippedCount, theme,
-    isFinished,
+    // computed
+    hasSavedSession, isFinished,
+    // actions
     startSession, nextQuestion, prevQuestion, skipQuestion, resetProgress,
-    hasSavedSession, exportState, importState, setTheme
+    exportState, importState, setTheme
   }
 }
 
@@ -292,4 +435,4 @@ export function parseShareUrl(query) {
   return null
 }
 
-export { SCHEMA_VERSION, stateKey, themeKey }
+export { SCHEMA_VERSION, sessionsKey, activeSessionIdKey, themeKey }

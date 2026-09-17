@@ -63,6 +63,81 @@
         </label>
       </div>
 
+      <!-- История сессий — список всех сессий, можно открыть или удалить -->
+      <div v-if="sessions.length > 0" class="mb-8">
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+          <h2 class="text-2xl font-bold mb-4">История сессий</h2>
+          <p class="text-sm opacity-80 mb-4">
+            Можно параллельно вести несколько сессий с разными колодами
+            и возвращаться к ним позже.
+          </p>
+
+          <div class="space-y-3 max-h-96 overflow-y-auto">
+            <div
+              v-for="s in sortedSessions"
+              :key="s.id"
+              class="bg-white/10 rounded-lg p-4 flex items-center gap-4"
+              :class="s.id === activeSessionId ? 'ring-2 ring-yellow-500' : ''"
+            >
+              <!-- Иконка статуса -->
+              <div class="text-2xl shrink-0">
+                <span v-if="s.completed">✅</span>
+                <span v-else>▶️</span>
+              </div>
+
+              <!-- Инфо -->
+              <div class="flex-grow min-w-0">
+                <div class="font-bold truncate">
+                  {{ sessionDeckName(s) }} • порядок {{ sessionOrderName(s) }}
+                </div>
+                <div class="text-xs opacity-70 mt-1">
+                  {{ s.completed
+                    ? `Завершена • ${formatDate(s.updatedAt)}`
+                    : `В процессе • вопрос ${(s.currentTurn || 0) + 1} из ${sessionTotal(s)} • ${formatDate(s.updatedAt)}`
+                  }}
+                </div>
+              </div>
+
+              <!-- Кнопки -->
+              <div class="flex gap-2 shrink-0">
+                <!-- Активная незавершённая сессия: "Активна" (disabled) -->
+                <button
+                  v-if="s.id === activeSessionId && !s.completed"
+                  disabled
+                  class="px-3 py-2 bg-yellow-500/30 text-yellow-300 cursor-default rounded-lg text-sm font-bold"
+                >
+                  Активна
+                </button>
+                <!-- Незавершённая не-активная сессия: "Открыть" -->
+                <button
+                  v-else-if="!s.completed"
+                  @click="openSession(s.id)"
+                  class="px-3 py-2 bg-green-500 hover:bg-green-400 rounded-lg text-sm font-bold"
+                >
+                  Открыть
+                </button>
+                <!-- Завершённая сессия: "Снова" — создать новую с теми же параметрами -->
+                <button
+                  v-else
+                  @click="restartCompletedSession(s)"
+                  class="px-3 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg text-sm font-bold"
+                  aria-label="Начать новую сессию с теми же параметрами"
+                >
+                  ↻ Снова
+                </button>
+                <button
+                  @click="confirmDeleteSession(s.id)"
+                  class="px-3 py-2 bg-red-500 hover:bg-red-400 rounded-lg text-sm font-bold"
+                  aria-label="Удалить сессию"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Выбор колоды -->
       <div class="space-y-6">
         <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
@@ -185,7 +260,9 @@ const {
   hasSavedSession, startSession, resetProgress,
   exportState, importState, theme, setTheme,
   // Реактивные данные сохранённой сессии — для отображения инфо и QR
-  deckId, orderIndex, currentTurn, role, deck, currentOrder
+  deckId, orderIndex, currentTurn, role, deck, currentOrder,
+  // История сессий
+  sessions, activeSessionId, loadSession, deleteSession
 } = useDeck()
 
 const availableDecks = Object.values(decks)
@@ -216,6 +293,33 @@ const continueShareUrl = computed(() => {
   if (!hasSavedSession.value) return ''
   return buildShareUrl(deckId.value, orderIndex.value, role.value, currentTurn.value)
 })
+
+// ─── История сессий: сортировка (активная первой, затем по updatedAt) ──
+const sortedSessions = computed(() => {
+  return [...sessions.value].sort((a, b) => {
+    // Активная всегда первая
+    if (a.id === activeSessionId.value) return -1
+    if (b.id === activeSessionId.value) return 1
+    // Остальные — по дате обновления (новые первыми)
+    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
+  })
+})
+
+function sessionDeckName(s) {
+  return decks[s.deckId]?.name || '—'
+}
+function sessionOrderName(s) {
+  return decks[s.deckId]?.orders?.[s.orderIndex]?.name || '—'
+}
+function sessionTotal(s) {
+  return decks[s.deckId]?.orders?.[s.orderIndex]?.sequence.length ?? 0
+}
+function formatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) +
+         ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
 
 async function generateContinueQr(url) {
   if (!url) { continueQrDataUrl.value = ''; return }
@@ -263,8 +367,6 @@ function selectOrder(index) { selectedOrderIndex.value = index }
 function selectRole(r) { selectedRole.value = r }
 
 function startGame() {
-  // Если share-ссылка содержит ?turn=N — стартуем с этого вопроса
-  // (продолжение сессии партнёра). Иначе — с начала.
   const turn = shareParams.value?.turn
   startSession(
     selectedDeckId.value,
@@ -282,6 +384,28 @@ function startNew() {
   selectedDeckId.value = null
   selectedOrderIndex.value = null
   selectedRole.value = null
+}
+
+// Открыть сессию из истории → сделать её активной и перейти в игру
+function openSession(id) {
+  if (loadSession(id)) {
+    router.push('/game')
+  }
+}
+
+// Перезапустить завершённую сессию: создать новую с теми же параметрами
+function restartCompletedSession(s) {
+  startSession(s.deckId, s.orderIndex, s.role)
+  router.push('/game')
+}
+
+function confirmDeleteSession(id) {
+  const s = sessions.value.find(x => x.id === id)
+  if (!s) return
+  const name = `${sessionDeckName(s)} • порядок ${sessionOrderName(s)}`
+  if (confirm(`Удалить сессию "${name}" из истории?`)) {
+    deleteSession(id)
+  }
 }
 
 function handleExport() {

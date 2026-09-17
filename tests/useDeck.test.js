@@ -6,7 +6,7 @@ import { ref } from 'vue'
 // Импортируем только чистые функции, чтобы не зависеть от singleton state
 
 import { makeRandom, generateOrder, decks, deckIds } from '@/data/decks'
-import { migrate, parseShareUrl, buildShareUrl, SCHEMA_VERSION } from '@/composables/useDeck'
+import { parseShareUrl, buildShareUrl, SCHEMA_VERSION } from '@/composables/useDeck'
 
 describe('data/decks.js', () => {
   describe('makeRandom', () => {
@@ -117,42 +117,9 @@ describe('data/decks.js', () => {
   })
 })
 
-describe('useDeck — migrate()', () => {
-  it('возвращает пустой объект для null/undefined', () => {
-    expect(migrate(null)).toEqual({})
-    expect(migrate(undefined)).toEqual({})
-  })
-
-  it('возвращает пустой объект для не-объекта', () => {
-    expect(migrate('hello')).toEqual({})
-    expect(migrate(42)).toEqual({})
-    expect(migrate([])).toEqual({})
-  })
-
-  it('мигрирует v0 (без version) в v1', () => {
-    const v0 = { deckId: 'deep', orderIndex: 2, currentTurn: 5, role: 'reader' }
-    const result = migrate(v0)
-    expect(result.version).toBe(1)
-    expect(result.passedIds).toEqual([])
-    expect(result.skippedIds).toEqual([])
-    expect(result.deckId).toBe('deep')
-  })
-
-  it('не трогает существующие passedIds/skippedIds', () => {
-    const v0 = { deckId: 'deep', passedIds: ['q1', 'q2'], skippedIds: ['q3'] }
-    const result = migrate(v0)
-    expect(result.passedIds).toEqual(['q1', 'q2'])
-    expect(result.skippedIds).toEqual(['q3'])
-  })
-
-  it('проходит без изменений для уже v1', () => {
-    const v1 = { version: 1, deckId: 'deep', orderIndex: 0, passedIds: [] }
-    const result = migrate(v1)
-    expect(result).toEqual(v1)
-  })
-
-  it('SCHEMA_VERSION = 1', () => {
-    expect(SCHEMA_VERSION).toBe(1)
+describe('useDeck — SCHEMA_VERSION', () => {
+  it('SCHEMA_VERSION = 2 (v2: добавлена история сессий)', () => {
+    expect(SCHEMA_VERSION).toBe(2)
   })
 })
 
@@ -294,12 +261,13 @@ describe('useDeck — singleton state', () => {
     expect(d.currentTurn.value).toBe(0)
   })
 
-  it('skipQuestion увеличивает turn и добавляет в skippedIds', () => {
+  it('skipQuestion у читающего увеличивает turn на 2 (пропуск всего раунда) и добавляет в skippedIds', () => {
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
     const firstQ = d.currentQuestion.value
     d.skipQuestion()
-    expect(d.currentTurn.value).toBe(1)
+    // +2: пропускается и ход читающего, и ход отвечающего (партнёр не услышал вопрос)
+    expect(d.currentTurn.value).toBe(2)
     expect(d.skippedIds.value).toContain(firstQ.id)
   })
 
@@ -321,11 +289,12 @@ describe('useDeck — singleton state', () => {
     expect(d.amIReading.value).toBe(true)  // turn 1
   })
 
-  it('isSkipped: true после skip + prev', () => {
+  it('isSkipped: true после skip + prev (×2, т.к. skip = +2)', () => {
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
-    d.skipQuestion()
-    d.prevQuestion()
+    d.skipQuestion()    // turn 0 → 2
+    d.prevQuestion()    // turn 2 → 1
+    d.prevQuestion()    // turn 1 → 0
     expect(d.isSkipped.value).toBe(true)
   })
 
@@ -341,12 +310,13 @@ describe('useDeck — singleton state', () => {
     // Пропустили, потом вернулись и ответили — isAnswered=true, isSkipped=false
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
-    d.skipQuestion()    // skip turn 0
-    d.prevQuestion()    // назад на turn 0
+    d.skipQuestion()    // skip turn 0 → turn 2
+    d.prevQuestion()    // turn 1
+    d.prevQuestion()    // turn 0
     expect(d.isSkipped.value).toBe(true)
     expect(d.isAnswered.value).toBe(false)
-    d.nextQuestion()    // ответить на turn 0
-    d.prevQuestion()    // назад
+    d.nextQuestion()    // ответить на turn 0 → turn 1
+    d.prevQuestion()    // назад → turn 0
     expect(d.isAnswered.value).toBe(true)
     expect(d.isSkipped.value).toBe(false) // пропущенный теперь "перекрыт" ответом
   })
@@ -364,11 +334,12 @@ describe('useDeck — singleton state', () => {
     expect(d.activeSkippedCount.value).toBe(1)
   })
 
-  it('activeSkippedCount: 0 после skip + answer (через prev)', () => {
-    // Пропустили, вернулись, ответили — пропуск "перекрыт", счётчик 0
+  it('activeSkippedCount: 0 после skip + answer (через prev ×2)', () => {
+    // Пропустили (turn 0 → 2), вернулись (×2: 2 → 1 → 0), ответили — пропуск "перекрыт", счётчик 0
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
     d.skipQuestion()
+    d.prevQuestion()
     d.prevQuestion()
     d.nextQuestion()
     expect(d.activeSkippedCount.value).toBe(0)
@@ -411,17 +382,40 @@ describe('useDeck — singleton state', () => {
     expect(d.currentQuestion.value).toBeNull()
   })
 
-  it('resetProgress очищает состояние и localStorage', () => {
+  it('isFinished: true при skip на последнем ходу (skip +2 может перевести за пределы)', () => {
+    // work имеет 10 вопросов, индексы 0..9. Если на turn=8 (reader) сделать skip +2 → turn=10 → isFinished
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')
+    for (let i = 0; i < 8; i++) d.nextQuestion()  // turn = 8 (reader, чётный)
+    d.skipQuestion()                              // turn = 10 → isFinished
+    expect(d.isFinished.value).toBe(true)
+  })
+
+  it('hasSavedSession: false если isFinished (сессия фактически завершена)', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')
+    for (let i = 0; i < 10; i++) d.nextQuestion()
+    expect(d.isFinished.value).toBe(true)
+    expect(d.hasSavedSession.value).toBe(false)  // завершённая — не "незавершённая"
+  })
+
+  it('resetProgress очищает активное состояние и помечает сессию завершённой', () => {
     const d = useDeck()
     d.startSession('deep', 0, 'reader')
     d.nextQuestion()
-    expect(localStorage.getItem('game_state')).not.toBeNull()
+    // После startSession и nextQuestion в localStorage должна быть сессия
+    expect(localStorage.getItem('coffee_sessions')).not.toBeNull()
+    expect(localStorage.getItem('coffee_active_session_id')).not.toBeNull()
     d.resetProgress()
     expect(d.deckId.value).toBeNull()
     expect(d.orderIndex.value).toBeNull()
     expect(d.role.value).toBeNull()
     expect(d.currentTurn.value).toBe(0)
-    expect(localStorage.getItem('game_state')).toBeNull()
+    // Активная сессия сброшена, но запись осталась в истории (помечена completed)
+    expect(localStorage.getItem('coffee_active_session_id')).toBeNull()
+    const sessions = JSON.parse(localStorage.getItem('coffee_sessions') || '[]')
+    expect(sessions.length).toBe(1)
+    expect(sessions[0].completed).toBe(true)
   })
 
   it('hasSavedSession: false на пустом localStorage', () => {
@@ -442,8 +436,8 @@ describe('useDeck — singleton state', () => {
     expect(d.hasSavedSession.value).toBe(false)
   })
 
-  it('hasSavedSession: false на повреждённом localStorage', () => {
-    localStorage.setItem('game_state', '{not valid json')
+  it('hasSavedSession: false на повреждённом localStorage (coffee_sessions)', () => {
+    localStorage.setItem('coffee_sessions', '{not valid json')
     const d = useDeck()
     expect(d.hasSavedSession.value).toBe(false)
   })
@@ -463,6 +457,168 @@ describe('useDeck — singleton state', () => {
     expect(d2.orderIndex.value).toBe(5)
     expect(d2.role.value).toBe('listener')
     expect(d2.currentTurn.value).toBe(savedTurn)
+  })
+})
+
+describe('useDeck — sessions history', () => {
+  let useDeck
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    useDeck = mod.useDeck
+  })
+
+  it('startSession создаёт запись в истории сессий', () => {
+    const d = useDeck()
+    expect(d.sessions.value).toHaveLength(0)
+    d.startSession('deep', 0, 'reader')
+    expect(d.sessions.value).toHaveLength(1)
+    expect(d.sessions.value[0].deckId).toBe('deep')
+    expect(d.sessions.value[0].orderIndex).toBe(0)
+    expect(d.sessions.value[0].role).toBe('reader')
+    expect(d.sessions.value[0].completed).toBe(false)
+  })
+
+  it('startSession устанавливает activeSessionId', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    expect(d.activeSessionId.value).toBeTruthy()
+    expect(d.activeSessionId.value).toBe(d.sessions.value[0].id)
+  })
+
+  it('несколько startSession создают несколько записей', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.startSession('work', 1, 'listener')
+    expect(d.sessions.value).toHaveLength(2)
+    // Активная — последняя созданная
+    expect(d.activeSessionId.value).toBe(d.sessions.value[0].id)
+    expect(d.deckId.value).toBe('work')
+  })
+
+  it('nextQuestion обновляет запись в истории', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    const s = d.sessions.value.find(x => x.id === d.activeSessionId.value)
+    expect(s.currentTurn).toBe(1)
+    expect(s.passedIds).toHaveLength(1)
+  })
+
+  it('loadSession переключается на существующую сессию', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    const firstSessionId = d.activeSessionId.value
+
+    d.startSession('work', 1, 'listener')  // теперь активна новая
+    expect(d.activeSessionId.value).not.toBe(firstSessionId)
+    expect(d.deckId.value).toBe('work')
+
+    // Переключаемся обратно
+    d.loadSession(firstSessionId)
+    expect(d.activeSessionId.value).toBe(firstSessionId)
+    expect(d.deckId.value).toBe('deep')
+    expect(d.currentTurn.value).toBe(1)  // сохранили прогресс
+  })
+
+  it('loadSession с несуществующим id возвращает false', () => {
+    const d = useDeck()
+    expect(d.loadSession('nonexistent')).toBe(false)
+  })
+
+  it('deleteSession удаляет запись из истории', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    const id = d.activeSessionId.value
+    d.deleteSession(id)
+    expect(d.sessions.value).toHaveLength(0)
+    // activeSessionId тоже сброшен
+    expect(d.activeSessionId.value).toBeNull()
+  })
+
+  it('deleteSession активной сессии сбрасывает текущее состояние', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    const id = d.activeSessionId.value
+    d.deleteSession(id)
+    expect(d.deckId.value).toBeNull()
+    expect(d.orderIndex.value).toBeNull()
+    expect(d.role.value).toBeNull()
+    expect(d.currentTurn.value).toBe(0)
+  })
+
+  it('deleteSession чужой сессии не сбрасывает активную', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')   // первая
+    d.startSession('work', 1, 'listener') // вторая (активная)
+    const firstId = d.sessions.value[1].id  // первая сессия (не активная)
+    d.deleteSession(firstId)
+    expect(d.sessions.value).toHaveLength(1)
+    expect(d.activeSessionId.value).not.toBeNull()
+    expect(d.deckId.value).toBe('work')  // активная не сброшена
+  })
+
+  it('завершённая сессия помечается completed', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')
+    for (let i = 0; i < 10; i++) d.nextQuestion()
+    const s = d.sessions.value.find(x => x.id === d.activeSessionId.value)
+    expect(s.completed).toBe(true)
+  })
+
+  it('resetProgress помечает активную сессию завершённой и сбрасывает activeId', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    const id = d.activeSessionId.value
+    d.resetProgress()
+    expect(d.activeSessionId.value).toBeNull()
+    const s = d.sessions.value.find(x => x.id === id)
+    expect(s.completed).toBe(true)
+  })
+
+  it('после resetProgress can startNew session — старая остаётся в истории', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    d.resetProgress()
+    expect(d.sessions.value).toHaveLength(1)
+    d.startSession('work', 2, 'listener')
+    expect(d.sessions.value).toHaveLength(2)
+    // Активна новая
+    expect(d.deckId.value).toBe('work')
+    expect(d.activeSessionId.value).toBe(d.sessions.value[0].id)
+  })
+
+  it('migrateV1ToV2: старый game_state конвертируется в сессию', async () => {
+    // Пишем старый формат
+    localStorage.setItem('game_state', JSON.stringify({
+      version: 1,
+      deckId: 'deep',
+      orderIndex: 3,
+      currentTurn: 5,
+      role: 'reader',
+      passedIds: ['q1'],
+      skippedIds: ['q2'],
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    }))
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+    // game_state удалён, создана сессия
+    expect(localStorage.getItem('game_state')).toBeNull()
+    expect(d.sessions.value).toHaveLength(1)
+    expect(d.sessions.value[0].deckId).toBe('deep')
+    expect(d.sessions.value[0].orderIndex).toBe(3)
+    expect(d.sessions.value[0].currentTurn).toBe(5)
+    expect(d.sessions.value[0].role).toBe('reader')
+    expect(d.sessions.value[0].passedIds).toEqual(['q1'])
+    expect(d.sessions.value[0].skippedIds).toEqual(['q2'])
+    expect(d.activeSessionId.value).toBe(d.sessions.value[0].id)
   })
 })
 
