@@ -192,7 +192,7 @@
               :class="selectedRole === 'reader' ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
             >
               <div class="text-2xl mb-2">🗣️</div>
-              <div class="font-bold">Начну с чтения</div>
+              <div class="font-bold">Я читаю первым</div>
               <div class="text-sm opacity-80">Первый вопрос читаю я</div>
             </button>
             <button
@@ -202,7 +202,7 @@
               :class="selectedRole === 'listener' ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
             >
               <div class="text-2xl mb-2">👂</div>
-              <div class="font-bold">Начну со слушания</div>
+              <div class="font-bold">Я слушаю первым</div>
               <div class="text-sm opacity-80">Первый вопрос читает партнер</div>
             </button>
           </div>
