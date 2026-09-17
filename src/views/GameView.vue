@@ -2,8 +2,8 @@
   <div
     class="min-h-dvh flex flex-col p-4 transition-colors duration-500"
     :class="amIReading
-      ? 'bg-indigo-900 dark:bg-indigo-950 text-white'
-      : 'bg-gray-800 dark:bg-gray-900 text-gray-300'"
+      ? 'bg-indigo-100 dark:bg-indigo-950 text-gray-900 dark:text-white'
+      : 'bg-emerald-100 dark:bg-emerald-950 text-gray-900 dark:text-white'"
     style="padding-bottom: env(safe-area-inset-bottom); padding-top: env(safe-area-inset-top);"
   >
     <!-- Шапка: скрыта когда isFinished -->
@@ -21,12 +21,13 @@
       </p>
     </header>
 
-    <!-- Индикатор роли: скрыт когда isFinished -->
-    <div v-if="!isFinished" class="text-center mb-8" role="status" aria-live="polite">
-      <div v-if="amIReading" class="text-2xl font-bold text-yellow-400 animate-pulse">
+    <!-- Индикатор роли: скрыт когда isFinished или isJumpedTurn (на перепрыгнутом
+         ходе не показываем "Теперь ты отвечаешь" — там нечего отвечать). -->
+    <div v-if="!isFinished && !isJumpedTurn" class="text-center mb-8" role="status" aria-live="polite">
+      <div v-if="amIReading" class="text-2xl font-bold text-indigo-600 dark:text-yellow-400 animate-pulse">
         🗣️ Зачитай вопрос партнеру
       </div>
-      <div v-else class="text-2xl font-bold text-green-400">
+      <div v-else class="text-2xl font-bold text-emerald-600 dark:text-emerald-300">
         💬 Теперь ты отвечаешь
       </div>
       <p class="text-sm mt-2 opacity-70">
@@ -36,95 +37,118 @@
       </p>
     </div>
 
-    <!-- Карточка вопроса + кнопки (рядом, под карточкой — для удобного тапа) -->
+    <!-- На перепрыгнутом ходу показываем компактный заголовок без подсказки -->
+    <div v-else-if="!isFinished && isJumpedTurn" class="text-center mb-8" role="status" aria-live="polite">
+      <div class="text-2xl font-bold text-gray-500 dark:text-gray-400">
+        ⏭️ Этот ход был пропущен
+      </div>
+    </div>
+
+    <!-- Карточка/подсказка. min-h фиксирует высоту, чтобы кнопка не прыгала. -->
     <main class="flex-grow flex flex-col items-center justify-center" role="main">
-      <!-- Читающий: карточка + кнопки под ней -->
-      <div v-if="amIReading && currentQuestion && !isFinished" class="w-full max-w-lg">
-        <div
-          :key="currentQuestion.id"
-          class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl text-center animate-flip"
-        >
-          <p class="text-2xl md:text-3xl font-medium leading-relaxed">
-            {{ currentQuestion.text }}
-          </p>
+      <div class="w-full max-w-lg flex flex-col" style="min-height: 35vh;">
 
-          <!-- Пометка "Отвечен ранее" имеет приоритет над "Пропущен ранее" -->
-          <div v-if="isAnswered" class="mt-4 text-sm text-green-400" role="note">
-            ✅ Этот вопрос был отвечен ранее
+        <!-- ─── Читающий: карточка + пометки ─────────────────── -->
+        <template v-if="!isFinished">
+          <div v-if="amIReading && currentQuestion" class="flex-grow flex flex-col justify-center">
+            <div
+              :key="currentQuestion.id"
+              class="bg-white/30 dark:bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl text-center animate-flip"
+            >
+              <p class="text-2xl md:text-3xl font-medium leading-relaxed">
+                {{ currentQuestion.text }}
+              </p>
+
+              <div v-if="isAnswered" class="mt-4 text-sm text-green-600 dark:text-green-400" role="note">
+                ✅ Этот вопрос был отвечен ранее
+              </div>
+              <div v-else-if="isSkipped" class="mt-4 text-sm text-orange-500 dark:text-orange-400" role="note">
+                ⚠️ Этот вопрос был пропущен ранее
+              </div>
+            </div>
           </div>
-          <div v-else-if="isSkipped" class="mt-4 text-sm text-orange-400" role="note">
-            ⚠️ Этот вопрос был пропущен ранее
+
+          <!-- ─── Отвечающий: 🤔 + подсказка ───────────────────── -->
+          <div v-else-if="!amIReading && currentQuestion && !isJumpedTurn" class="flex-grow flex flex-col items-center justify-center text-center opacity-80">
+            <div class="text-6xl mb-4">🤔</div>
+            <p class="text-lg">Внимательно слушай партнёра, чтобы ответить на вопрос</p>
+          </div>
+
+          <!-- ─── Перепрыгнутый ход (после skip +2 и prev) ──────── -->
+          <div v-else-if="!amIReading && currentQuestion && isJumpedTurn" class="flex-grow flex flex-col items-center justify-center text-center opacity-80">
+            <div class="text-6xl mb-4">⏭️</div>
+            <p class="text-lg">Читающий пропустил этот вопрос — партнёр не услышал его, поэтому и отвечать не на что.</p>
+            <p class="text-sm opacity-80 mt-2">
+              Переходи к следующему ходу кнопкой «Следующий →» внизу.
+            </p>
+          </div>
+        </template>
+
+        <!-- ─── Завершение (isFinished) ─────────────────────── -->
+        <div v-if="isFinished" class="flex-grow flex flex-col items-center justify-center text-center">
+          <h2 class="text-3xl font-bold mb-4">🎉 Сессия завершена!</h2>
+          <p class="mb-6">Вы обсудили все вопросы в этом порядке.</p>
+          <div class="flex gap-4 justify-center">
+            <button @click="resetProgressAndStay"
+                    class="px-6 py-3 bg-white text-gray-900 rounded-lg font-bold">
+              Начать заново
+            </button>
+            <button @click="goBack"
+                    class="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-bold">
+              На главную
+            </button>
           </div>
         </div>
 
-        <!-- Кнопки под карточкой — ближе к пальцу на телефоне -->
-        <div class="flex gap-3 mt-6">
-          <button
-            @click="handlePrev"
-            :disabled="currentTurn === 0"
-            class="px-4 py-5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl transition-all"
-            aria-label="Вернуться к предыдущему вопросу"
-          >
-            ←
-          </button>
-          <button
-            @click="handleNext"
-            class="flex-1 py-5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95"
-          >
-            Партнёр ответил ➔
-          </button>
-          <button
-            @click="handleSkip"
-            class="px-4 py-5 bg-orange-500 hover:bg-orange-400 text-white text-base font-bold rounded-xl shadow-lg transition-all active:scale-95"
-            aria-label="Пропустить вопрос"
-          >
-            ⏭️ Пропустить
-          </button>
-        </div>
-      </div>
-
-      <!-- Отвечающий: 🤔 + подсказка + кнопка под ней -->
-      <div v-else-if="!amIReading && currentQuestion && !isFinished" class="w-full max-w-lg text-center">
-        <div class="opacity-80 mb-6">
-          <div class="text-6xl mb-4">🤔</div>
-          <p class="text-lg">Внимательно слушай партнёра, чтобы ответить на вопрос</p>
-        </div>
-
-        <!-- Кнопки под подсказкой -->
-        <div class="flex gap-3">
-          <button
-            @click="handlePrev"
-            :disabled="currentTurn === 0"
-            class="px-4 py-5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl transition-all"
-            aria-label="Вернуться к предыдущему вопросу"
-          >
-            ←
-          </button>
-          <button
-            @click="handleNext"
-            class="flex-1 py-5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95"
-          >
-            Я ответил ➔
-          </button>
-        </div>
-      </div>
-
-      <!-- Завершение: только текст + кнопки, без блока роли -->
-      <div v-else class="text-center">
-        <h2 class="text-3xl font-bold mb-4">🎉 Сессия завершена!</h2>
-        <p class="mb-6">Вы обсудили все вопросы в этом порядке.</p>
-        <div class="flex gap-4 justify-center">
-          <button @click="resetProgressAndStay"
-                  class="px-6 py-3 bg-white text-gray-900 rounded-lg font-bold">
-            Начать заново
-          </button>
-          <button @click="goBack"
-                  class="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold">
-            На главную
-          </button>
-        </div>
       </div>
     </main>
+
+    <!-- ─── Основная кнопка: "Партнёр ответил" (жёлтый) или "Я ответил" (зелёный).
+         Не показывается на isFinished и на перепрыгнутом ходу.
+         Отдельный блок ПОД main, фиксирует позицию. ─── -->
+    <div v-if="currentQuestion && !isFinished && !isJumpedTurn" class="max-w-lg mx-auto w-full mt-2">
+      <button
+        @click="handleNext"
+        class="w-full py-5 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95"
+        :class="amIReading
+          ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900'
+          : 'bg-emerald-500 hover:bg-emerald-400 text-white'"
+      >
+        {{ amIReading ? 'Партнёр ответил ➔' : 'Я ответил ➔' }}
+      </button>
+    </div>
+
+    <!-- Footer: навигация. Не показывается на isFinished. -->
+    <footer v-if="!isFinished" class="mt-4" role="contentinfo">
+      <div class="max-w-lg mx-auto flex gap-3 flex-wrap justify-center">
+        <button
+          @click="handlePrev"
+          :disabled="currentTurn === 0"
+          class="px-4 py-3 bg-gray-500/30 hover:bg-gray-500/40 disabled:opacity-30 disabled:cursor-not-allowed text-current text-sm font-bold rounded-lg transition-all"
+          aria-label="Вернуться к предыдущему вопросу"
+        >
+          ← Предыдущий
+        </button>
+
+        <button
+          v-if="amIReading && currentQuestion && !isJumpedTurn"
+          @click="handleSkip"
+          class="px-4 py-3 bg-orange-500/30 hover:bg-orange-500/40 text-current text-sm font-bold rounded-lg transition-all"
+          aria-label="Пропустить вопрос"
+        >
+          ⏭️ Пропустить
+        </button>
+
+        <button
+          v-if="isNextOpened"
+          @click="handleNextTurn"
+          class="px-4 py-3 bg-blue-500/30 hover:bg-blue-500/40 text-current text-sm font-bold rounded-lg transition-all"
+          aria-label="Перейти к следующему вопросу"
+        >
+          Следующий →
+        </button>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -137,7 +161,8 @@ const router = useRouter()
 const {
   currentOrder, currentQuestion, currentTurn, amIReading,
   passedIds, activeSkippedCount, isAnswered, isSkipped,
-  nextQuestion, prevQuestion, skipQuestion, resetProgress, isFinished
+  isJumpedTurn, isNextOpened,
+  nextQuestion, nextTurn, prevQuestion, skipQuestion, resetProgress, isFinished
 } = useDeck()
 
 function vibrate(pattern) {
@@ -149,6 +174,7 @@ function vibrate(pattern) {
 function handleNext()  { nextQuestion();  vibrate(50) }
 function handlePrev()  { prevQuestion();  vibrate(30) }
 function handleSkip()  { skipQuestion();  vibrate([50, 100, 50]) }
+function handleNextTurn()  { nextTurn();  vibrate(50) }
 
 function goBack() { router.push('/') }
 
@@ -159,10 +185,13 @@ function resetProgressAndStay() {
 
 function onKeyDown(e) {
   if (isFinished.value) return
-  // Только читающий может управлять ходом с клавиатуры (у отвечающего нет карточки)
-  if (!amIReading.value) return
-  if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); handleNext() }
-  if (e.key === 'ArrowLeft')  { e.preventDefault(); handlePrev() }
+  // Стрелки навигации работают всегда
+  if (e.key === 'ArrowLeft') { e.preventDefault(); handlePrev(); return }
+  if (e.key === 'ArrowRight' && isNextOpened.value) { e.preventDefault(); handleNextTurn(); return }
+
+  // Главная кнопка только у читающего на не-перепрыгнутом ходу
+  if (!amIReading.value || isJumpedTurn.value) return
+  if (e.key === 'Enter') { e.preventDefault(); handleNext() }
   if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') { e.preventDefault(); handleSkip() }
 }
 

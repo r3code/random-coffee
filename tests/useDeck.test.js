@@ -691,6 +691,95 @@ describe('useDeck — sessions history', () => {
     // currentTurn = 10, sequence.length = 10 → isFinished, hasSavedSession false
     expect(d.hasSavedSession.value).toBe(false)
   })
+
+  it('nextTurn: переход без модификации passed/skipped', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()    // turn 0 → 1, q0 в passedIds
+    expect(d.currentTurn.value).toBe(1)
+    expect(d.passedIds.value).toHaveLength(1)
+    d.prevQuestion()    // turn 1 → 0
+    expect(d.currentTurn.value).toBe(0)
+    // nextTurn: переход на 1 без модификации passedIds
+    d.nextTurn()
+    expect(d.currentTurn.value).toBe(1)
+    expect(d.passedIds.value).toHaveLength(1)  // не добавили новый
+    expect(d.skippedIds.value).toHaveLength(0)
+  })
+
+  it('nextTurn на последнем ходе: не выходит за пределы', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')  // 10 вопросов
+    for (let i = 0; i < 9; i++) d.nextQuestion()  // turn = 9 (последний)
+    d.nextTurn()
+    expect(d.currentTurn.value).toBe(9)  // остался на месте
+  })
+
+  it('isJumpedTurn: true после skip +2 и prev на +1 (перепрыгнутый ход)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    // turn 0: reader, q0
+    d.skipQuestion()    // skip → turn = 2 (пропустили ход 0 и ход 1)
+    d.prevQuestion()    // turn = 1 — перепрыгнутый ход отвечающего
+    expect(d.amIReading.value).toBe(false)  // отвечающий
+    expect(d.isJumpedTurn.value).toBe(true)
+  })
+
+  it('isJumpedTurn: false на обычном ходе (вопрос в passedIds)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()    // turn 0 → 1
+    d.prevQuestion()    // back to 0
+    expect(d.isJumpedTurn.value).toBe(false)  // q0 в passedIds
+  })
+
+  it('isJumpedTurn: false на обычном ходе (вопрос в skippedIds)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.skipQuestion()    // turn 0 → 2, q0 в skippedIds
+    d.prevQuestion()    // turn 2 → 1
+    d.prevQuestion()    // turn 1 → 0
+    expect(d.isJumpedTurn.value).toBe(false)  // q0 в skippedIds
+  })
+
+  it('isNextOpened: false в начале (следующий ещё не открывали)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    expect(d.isNextOpened.value).toBe(false)
+  })
+
+  it('isNextOpened: true когда следующий вопрос был отвечен', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()    // turn 0 → 1, q0 in passedIds
+    d.nextQuestion()    // turn 1 → 2, q1 in passedIds
+    d.prevQuestion()    // turn 2 → 1
+    d.prevQuestion()    // turn 1 → 0
+    // current turn=0, current q=q0, next q=q1
+    // q1 is in passedIds → isNextOpened=true
+    expect(d.isNextOpened.value).toBe(true)
+  })
+
+  it('isNextOpened: true когда следующий вопрос был пропущен', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()    // turn 0 → 1
+    d.skipQuestion()    // turn 1 → 3 (skip +2 from reader's perspective? no, listener skips +2 too)
+    // Actually amIReading at turn 1 = false (listener). But skipQuestion is +2 regardless.
+    d.prevQuestion()    // turn 3 → 2
+    d.prevQuestion()    // turn 2 → 1
+    d.prevQuestion()    // turn 1 → 0
+    // current turn=0, next is turn 1's question
+    // turn 1's question is in skippedIds → isNextOpened=true
+    expect(d.isNextOpened.value).toBe(true)
+  })
+
+  it('isNextOpened: false на последнем ходе (нет следующего)', () => {
+    const d = useDeck()
+    d.startSession('work', 0, 'reader')  // 10 вопросов
+    for (let i = 0; i < 9; i++) d.nextQuestion()  // turn = 9 (последний)
+    expect(d.isNextOpened.value).toBe(false)  // нет next
+  })
 })
 
 describe('useDeck — importState validation', () => {

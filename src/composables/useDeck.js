@@ -99,6 +99,12 @@ const passedIds   = ref(activeSession.value?.passedIds ? [...activeSession.value
 const skippedIds  = ref(activeSession.value?.skippedIds ? [...activeSession.value.skippedIds] : [])
 const theme       = ref(localStorage.getItem(themeKey) || 'auto')
 
+// maxReachedTurn: максимальный ход, до которого мы доходили в текущей сессии.
+// Используется для различения "новый ход" (currentTurn === maxReachedTurn) от
+// "вернулись назад" (currentTurn < maxReachedTurn). Нужно для isJumpedTurn.
+// При startSession = 0. При nextQuestion/skipQuestion — обновляется до max.
+const maxReachedTurn = ref(activeSession.value?.currentTurn ?? 0)
+
 // ─── Derived ────────────────────────────────────────────────────
 const deck = computed(() => deckId.value ? decks[deckId.value] : null)
 
@@ -127,6 +133,38 @@ const isSkipped = computed(() => {
   if (!currentQuestion.value) return false
   const id = currentQuestion.value.id
   return skippedIds.value.includes(id) && !passedIds.value.includes(id)
+})
+
+// isJumpedTurn: текущий ход был перепрыгнут skip'ом (читатель сделал skip +2
+// от своего хода, ответчик на +1 ходу не услышал вопрос — отвечать не на что).
+// Определяется так: currentTurn < maxReachedTurn (мы ВЕРНУЛИСЬ назад) И
+// текущий вопрос НЕ в passedIds и НЕ в skippedIds (никто его не открывал).
+// На новом ходу (currentTurn === maxReachedTurn) — не jumped, даже если
+// текущий вопрос ещё не в passed/skipped (это нормально, его только что открыли).
+const isJumpedTurn = computed(() => {
+  if (!currentQuestion.value) return false
+  if (currentTurn.value >= maxReachedTurn.value) return false  // новый ход, не вернулись назад
+  const id = currentQuestion.value.id
+  return !passedIds.value.includes(id) && !skippedIds.value.includes(id)
+})
+
+// nextQuestionId: id следующего вопроса (для проверки, был ли он уже открыт).
+const nextQuestionId = computed(() => {
+  if (!currentOrder.value) return null
+  const nextIdx = currentTurn.value + 1
+  if (nextIdx >= currentOrder.value.sequence.length) return null
+  return currentOrder.value.sequence[nextIdx]
+})
+
+// isNextOpened: true если следующий ход находится в пределах maxReachedTurn
+// (мы туда уже доходили). Используется для показа кнопки "Следующий →".
+// На перепрыгнутом ходе следующий ход — это обычно ход, на котором мы уже
+// были после skip'а, поэтому кнопка "Следующий →" всегда видна.
+const isNextOpened = computed(() => {
+  if (!currentOrder.value) return false
+  const nextTurn = currentTurn.value + 1
+  if (nextTurn >= currentOrder.value.sequence.length) return false
+  return nextTurn <= maxReachedTurn.value
 })
 
 const activeSkippedCount = computed(() => {
@@ -174,6 +212,7 @@ function persistActiveSession() {
     role: role.value,
     passedIds: [...passedIds.value],
     skippedIds: [...skippedIds.value],
+    maxReachedTurn: maxReachedTurn.value,
     completed,
     updatedAt: new Date().toISOString()
   }
@@ -185,7 +224,7 @@ function persistActiveSession() {
 // Пропускаем во время loadSession (там persistActiveSession вызывается
 // вручную в конце).
 watch(
-  [deckId, orderIndex, currentTurn, role, passedIds, skippedIds],
+  [deckId, orderIndex, currentTurn, role, passedIds, skippedIds, maxReachedTurn],
   () => {
     if (isLoading) return
     persistActiveSession()
@@ -244,6 +283,7 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
     role: selectedRole,
     passedIds: [],
     skippedIds: [],
+    maxReachedTurn: turn,
     createdAt: now,
     updatedAt: now,
     completed: false
@@ -263,6 +303,7 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
   currentTurn.value = turn
   passedIds.value = []
   skippedIds.value = []
+  maxReachedTurn.value = turn  // новая сессия — достигнут только стартовый ход
   isLoading = false
   // Записываем финальное состояние в sessions[idx]
   persistActiveSession()
@@ -284,6 +325,8 @@ function loadSession(id) {
   currentTurn.value = s.currentTurn
   passedIds.value = [...(s.passedIds || [])]
   skippedIds.value = [...(s.skippedIds || [])]
+  // maxReachedTurn: из сохранённого state или текущий turn (старые сессии без этого поля)
+  maxReachedTurn.value = s.maxReachedTurn ?? s.currentTurn ?? 0
   isLoading = false
   // Синхронизируем запись с текущими refs (важно для завершённых сессий,
   // у которых completed мог быть false из-за старого бага — сейчас исправится).
@@ -311,19 +354,43 @@ function deleteSession(id) {
 
 function nextQuestion() {
   if (!currentQuestion.value) return
-  passedIds.value.push(currentQuestion.value.id)
+  const id = currentQuestion.value.id
+  // Не добавляем дубль, если уже отвечен (защита от повторного нажатия
+  // на уже отвеченном ходе после prev).
+  if (!passedIds.value.includes(id)) {
+    passedIds.value.push(id)
+  }
+  currentTurn.value++
+  // maxReachedTurn обновляем только при движении ВПЕРЁД (за пределы достигнутого)
+  if (currentTurn.value > maxReachedTurn.value) maxReachedTurn.value = currentTurn.value
+}
+
+// nextTurn: переход к следующему вопросу БЕЗ модификации passedIds/skippedIds.
+// Используется для кнопки "Следующий →" когда следующий вопрос уже открыт
+// (например, после prev на уже отвеченный вопрос, чтобы просто идти дальше).
+// maxReachedTurn НЕ обновляем — мы движемся в пределах уже достигнутых ходов.
+function nextTurn() {
+  if (!currentOrder.value) return
+  if (currentTurn.value + 1 >= currentOrder.value.sequence.length) return
   currentTurn.value++
 }
 
 function prevQuestion() {
   if (currentTurn.value <= 0) return
   currentTurn.value--
+  // maxReachedTurn НЕ уменьшаем — мы вернулись назад, но максимум остаётся
 }
 
 function skipQuestion() {
   if (!currentQuestion.value) return
-  skippedIds.value.push(currentQuestion.value.id)
+  const id = currentQuestion.value.id
+  // Не добавляем дубль в skippedIds (защита от повторного skip на уже пропущенном ходе).
+  if (!skippedIds.value.includes(id)) {
+    skippedIds.value.push(id)
+  }
   currentTurn.value += 2
+  // skip перепрыгивает ход — обновляем maxReachedTurn
+  if (currentTurn.value > maxReachedTurn.value) maxReachedTurn.value = currentTurn.value
 }
 
 // resetProgress: сбрасывает АКТИВНУЮ сессию (но сохраняет в истории)
@@ -348,6 +415,7 @@ function resetProgress() {
   currentTurn.value = 0
   passedIds.value = []
   skippedIds.value = []
+  maxReachedTurn.value = 0
   deckId.value = null
   orderIndex.value = null
   role.value = null
@@ -440,11 +508,12 @@ export function useDeck() {
     // state
     deck, deckId, orderIndex, currentOrder, currentQuestion, currentTurn,
     role, amIReading, passedIds, skippedIds,
-    isAnswered, isSkipped, activeSkippedCount, theme,
+    isAnswered, isSkipped, isJumpedTurn, isNextOpened,
+    activeSkippedCount, theme,
     // computed
     hasSavedSession, isFinished,
     // actions
-    startSession, nextQuestion, prevQuestion, skipQuestion, resetProgress,
+    startSession, nextQuestion, nextTurn, prevQuestion, skipQuestion, resetProgress,
     exportState, importState, setTheme
   }
 }
