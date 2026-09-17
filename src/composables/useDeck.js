@@ -59,8 +59,25 @@ const amIReading = computed(() => {
   return role.value === 'reader' ? isEvenTurn : !isEvenTurn
 })
 
+// isAnswered: текущий вопрос уже отвечен (есть в passedIds).
+// Используется для пометки "✅ Отвечен ранее" при возврате назад.
+const isAnswered = computed(() => {
+  return !!currentQuestion.value && passedIds.value.includes(currentQuestion.value.id)
+})
+
+// isSkipped: текущий вопрос был пропущен, НО не отвечен после пропуска.
+// Приоритет: если потом ответили (isAnswered=true) — это уже не "пропущен".
 const isSkipped = computed(() => {
-  return !!currentQuestion.value && skippedIds.value.includes(currentQuestion.value.id)
+  if (!currentQuestion.value) return false
+  const id = currentQuestion.value.id
+  return skippedIds.value.includes(id) && !passedIds.value.includes(id)
+})
+
+// Актуальный счётчик пропусков: только те пропуски, которые не "перекрыты"
+// последующим ответом. Если пропустили, потом вернулись и ответили —
+// из счётчика пропусков вычитается.
+const activeSkippedCount = computed(() => {
+  return skippedIds.value.filter(id => !passedIds.value.includes(id)).length
 })
 
 const isFinished = computed(() => {
@@ -124,11 +141,17 @@ if (typeof window !== 'undefined' && window.matchMedia) {
 }
 
 // ─── Actions ────────────────────────────────────────────────────
-function startSession(selectedDeckId, selectedOrderIndex, selectedRole) {
+// startSession: опциональный startTurn для продолжения с конкретного вопроса
+// (используется при открытии share-ссылки с ?turn=N)
+function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTurn = 0) {
   deckId.value = selectedDeckId
   orderIndex.value = selectedOrderIndex
   role.value = selectedRole
-  currentTurn.value = 0
+  // Валидация startTurn — не выходим за пределы последовательности
+  const total = decks[selectedDeckId]?.orders[selectedOrderIndex]?.sequence.length ?? 0
+  currentTurn.value = (typeof startTurn === 'number' && startTurn >= 0 && startTurn < total)
+    ? startTurn
+    : 0
   passedIds.value = []
   skippedIds.value = []
 }
@@ -229,7 +252,8 @@ function setTheme(t) {
 export function useDeck() {
   return {
     deck, deckId, orderIndex, currentOrder, currentQuestion, currentTurn,
-    role, amIReading, passedIds, skippedIds, isSkipped, theme,
+    role, amIReading, passedIds, skippedIds,
+    isAnswered, isSkipped, activeSkippedCount, theme,
     isFinished,
     startSession, nextQuestion, prevQuestion, skipQuestion, resetProgress,
     hasSavedSession, exportState, importState, setTheme
@@ -237,9 +261,18 @@ export function useDeck() {
 }
 
 // ─── URL helpers ────────────────────────────────────────────────
-export function buildShareUrl(dId, oIdx, r) {
-  const params = new URLSearchParams({ deck: dId, order: String(oIdx), role: r })
-  return `${window.location.origin}${window.location.pathname}?${params}`
+// buildShareUrl: роль инвертируется — это ссылка для ПАРТНЁРА.
+//   "Я reader" → партнёр listener; "Я listener" → партнёр reader.
+// Опционально можно передать currentTurn, чтобы партнёр открыл сессию
+// с того же вопроса (для продолжения прерванной игры).
+export function buildShareUrl(dId, oIdx, r, currentTurn = null) {
+  const partnerRole = r === 'reader' ? 'listener' : 'reader'
+  const params = { deck: dId, order: String(oIdx), role: partnerRole }
+  if (currentTurn !== null && typeof currentTurn === 'number' && currentTurn >= 0) {
+    params.turn = String(currentTurn)
+  }
+  const qs = new URLSearchParams(params)
+  return `${window.location.origin}${window.location.pathname}?${qs}`
 }
 
 export function parseShareUrl(query) {
@@ -248,7 +281,13 @@ export function parseShareUrl(query) {
   const o = parseInt(query.order, 10)
   const r = query.role
   if (d && deckIds.includes(d) && !isNaN(o) && o >= 0 && o < 10 && ['reader', 'listener'].includes(r)) {
-    return { deck: d, order: o, role: r }
+    const turn = parseInt(query.turn, 10)
+    return {
+      deck: d,
+      order: o,
+      role: r,
+      turn: (!isNaN(turn) && turn >= 0) ? turn : 0
+    }
   }
   return null
 }

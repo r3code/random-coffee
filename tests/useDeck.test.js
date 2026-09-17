@@ -159,7 +159,7 @@ describe('useDeck — migrate()', () => {
 describe('useDeck — parseShareUrl()', () => {
   it('парсит валидную ссылку', () => {
     const result = parseShareUrl({ deck: 'deep', order: '3', role: 'listener' })
-    expect(result).toEqual({ deck: 'deep', order: 3, role: 'listener' })
+    expect(result).toEqual({ deck: 'deep', order: 3, role: 'listener', turn: 0 })
   })
 
   it('возвращает null для пустого query', () => {
@@ -186,19 +186,47 @@ describe('useDeck — parseShareUrl()', () => {
 
 describe('useDeck — buildShareUrl()', () => {
   it('генерирует корректный URL', () => {
-    // jsdom устанавливает location.origin и location.pathname
     const url = buildShareUrl('deep', 3, 'listener')
     expect(url).toContain('deck=deep')
     expect(url).toContain('order=3')
-    expect(url).toContain('role=listener')
+    // Роль инвертируется — это ссылка для ПАРТНЁРА
+    expect(url).toContain('role=reader')
     expect(url.startsWith('http')).toBe(true)
   })
 
-  it('round-trip: buildShareUrl → parseShareUrl', () => {
+  it('инвертирует роль: reader → listener', () => {
+    const url = buildShareUrl('deep', 0, 'reader')
+    expect(url).toContain('role=listener')
+  })
+
+  it('инвертирует роль: listener → reader', () => {
+    const url = buildShareUrl('deep', 0, 'listener')
+    expect(url).toContain('role=reader')
+  })
+
+  it('без currentTurn — параметр turn отсутствует', () => {
+    const url = buildShareUrl('deep', 0, 'reader')
+    expect(url).not.toContain('turn=')
+  })
+
+  it('с currentTurn — добавляется параметр turn=N', () => {
+    const url = buildShareUrl('deep', 0, 'reader', 5)
+    expect(url).toContain('turn=5')
+  })
+
+  it('round-trip: buildShareUrl → parseShareUrl (без turn)', () => {
     const url = buildShareUrl('work', 7, 'reader')
     const query = Object.fromEntries(new URL(url).searchParams)
     const parsed = parseShareUrl(query)
-    expect(parsed).toEqual({ deck: 'work', order: 7, role: 'reader' })
+    // Роль после парсинга = та, что в URL = инвертированная
+    expect(parsed).toEqual({ deck: 'work', order: 7, role: 'listener', turn: 0 })
+  })
+
+  it('round-trip: buildShareUrl → parseShareUrl (с turn)', () => {
+    const url = buildShareUrl('work', 7, 'reader', 5)
+    const query = Object.fromEntries(new URL(url).searchParams)
+    const parsed = parseShareUrl(query)
+    expect(parsed).toEqual({ deck: 'work', order: 7, role: 'listener', turn: 5 })
   })
 })
 
@@ -299,6 +327,77 @@ describe('useDeck — singleton state', () => {
     d.skipQuestion()
     d.prevQuestion()
     expect(d.isSkipped.value).toBe(true)
+  })
+
+  it('isAnswered: true после next + prev', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()
+    d.prevQuestion()
+    expect(d.isAnswered.value).toBe(true)
+  })
+
+  it('isAnswered имеет приоритет над isSkipped', () => {
+    // Пропустили, потом вернулись и ответили — isAnswered=true, isSkipped=false
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.skipQuestion()    // skip turn 0
+    d.prevQuestion()    // назад на turn 0
+    expect(d.isSkipped.value).toBe(true)
+    expect(d.isAnswered.value).toBe(false)
+    d.nextQuestion()    // ответить на turn 0
+    d.prevQuestion()    // назад
+    expect(d.isAnswered.value).toBe(true)
+    expect(d.isSkipped.value).toBe(false) // пропущенный теперь "перекрыт" ответом
+  })
+
+  it('activeSkippedCount: 0 в начале', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    expect(d.activeSkippedCount.value).toBe(0)
+  })
+
+  it('activeSkippedCount: 1 после skip', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.skipQuestion()
+    expect(d.activeSkippedCount.value).toBe(1)
+  })
+
+  it('activeSkippedCount: 0 после skip + answer (через prev)', () => {
+    // Пропустили, вернулись, ответили — пропуск "перекрыт", счётчик 0
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.skipQuestion()
+    d.prevQuestion()
+    d.nextQuestion()
+    expect(d.activeSkippedCount.value).toBe(0)
+  })
+
+  it('activeSkippedCount: счётчик не зависит от отвеченных', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader')
+    d.nextQuestion()    // answered 1
+    d.nextQuestion()    // answered 2
+    expect(d.activeSkippedCount.value).toBe(0)
+  })
+
+  it('startSession с startTurn: продолжает с указанного вопроса', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', 5)
+    expect(d.currentTurn.value).toBe(5)
+  })
+
+  it('startSession с startTurn > длины последовательности: падает на 0', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', 999)
+    expect(d.currentTurn.value).toBe(0)
+  })
+
+  it('startSession с отрицательным startTurn: падает на 0', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', -5)
+    expect(d.currentTurn.value).toBe(0)
   })
 
   it('isFinished: true после прохождения всех вопросов', () => {

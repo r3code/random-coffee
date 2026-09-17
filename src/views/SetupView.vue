@@ -22,8 +22,11 @@
       <div v-if="hasSavedSession && !shareParams" class="mb-8">
         <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
           <h2 class="text-2xl font-bold mb-2">Продолжить сессию?</h2>
-          <p class="mb-4">У вас есть незавершенная сессия</p>
-          <div class="flex gap-4">
+          <p class="mb-4 text-sm opacity-80">
+            Незавершённая сессия: {{ savedDeckName }}, порядок {{ savedOrderName }},
+            вопрос {{ (savedTurn ?? 0) + 1 }} из {{ savedTotalQuestions }}
+          </p>
+          <div class="flex gap-4 mb-4">
             <button @click="continueSession"
                     class="flex-1 py-3 bg-green-500 hover:bg-green-400 rounded-lg font-bold">
               Продолжить
@@ -32,6 +35,18 @@
                     class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold">
               Новая
             </button>
+          </div>
+
+          <!-- QR-код с share-ссылкой для партнёра: включает currentTurn,
+               чтобы партнёр мог продолжить с того же вопроса -->
+          <div class="text-center">
+            <p class="text-sm opacity-80 mb-2">
+              Покажите партнёру QR-код, чтобы продолжить с того же вопроса:
+            </p>
+            <div v-if="continueQrDataUrl" class="inline-block bg-white p-3 rounded-lg">
+              <img :src="continueQrDataUrl" alt="QR-код для продолжения сессии" class="w-40 h-40" />
+            </div>
+            <p class="text-xs opacity-70 mt-2 break-all">{{ continueShareUrl }}</p>
           </div>
         </div>
       </div>
@@ -168,7 +183,9 @@ const router = useRouter()
 const route = useRoute()
 const {
   hasSavedSession, startSession, resetProgress,
-  exportState, importState, theme, setTheme
+  exportState, importState, theme, setTheme,
+  // Реактивные данные сохранённой сессии — для отображения инфо и QR
+  deckId, orderIndex, currentTurn, role, deck, currentOrder
 } = useDeck()
 
 const availableDecks = Object.values(decks)
@@ -178,13 +195,37 @@ const selectedOrderIndex = ref(null)
 const selectedRole = ref(null)
 const shareParams = ref(null)
 const qrDataUrl = ref('')
+const continueQrDataUrl = ref('')
 
 const selectedDeck = computed(() => selectedDeckId.value ? decks[selectedDeckId.value] : null)
 
+// ─── QR для НОВОЙ сессии (выбор колоды/порядка/роли) ──────────
 const shareUrl = computed(() => {
   if (!selectedDeckId.value || selectedOrderIndex.value === null || !selectedRole.value) return ''
   return buildShareUrl(selectedDeckId.value, selectedOrderIndex.value, selectedRole.value)
 })
+
+// ─── Инфо о сохранённой сессии (для блока "Продолжить") ──────
+const savedDeckName = computed(() => deck.value?.name || '—')
+const savedOrderName = computed(() => currentOrder.value?.name || '—')
+const savedTurn = computed(() => currentTurn.value)
+const savedTotalQuestions = computed(() => currentOrder.value?.sequence.length ?? 0)
+
+// ─── QR для ПРОДОЛЖЕНИЯ сессии (для партнёра, с currentTurn) ─
+const continueShareUrl = computed(() => {
+  if (!hasSavedSession.value) return ''
+  return buildShareUrl(deckId.value, orderIndex.value, role.value, currentTurn.value)
+})
+
+async function generateContinueQr(url) {
+  if (!url) { continueQrDataUrl.value = ''; return }
+  try {
+    continueQrDataUrl.value = await QRCode.toDataURL(url, { width: 256, margin: 1 })
+  } catch (e) {
+    console.error('Continue QR generation failed:', e)
+    continueQrDataUrl.value = ''
+  }
+}
 
 watch(shareUrl, async (url) => {
   if (!url) { qrDataUrl.value = ''; return }
@@ -195,6 +236,12 @@ watch(shareUrl, async (url) => {
     qrDataUrl.value = ''
   }
 }, { immediate: false })
+
+// Генерируем QR для продолжения при изменении состояния сохранённой сессии
+watch([hasSavedSession, continueShareUrl], ([has, url]) => {
+  if (has) generateContinueQr(url)
+  else continueQrDataUrl.value = ''
+}, { immediate: true })
 
 onMounted(() => {
   const parsed = parseShareUrl(route.query)
@@ -216,7 +263,15 @@ function selectOrder(index) { selectedOrderIndex.value = index }
 function selectRole(r) { selectedRole.value = r }
 
 function startGame() {
-  startSession(selectedDeckId.value, selectedOrderIndex.value, selectedRole.value)
+  // Если share-ссылка содержит ?turn=N — стартуем с этого вопроса
+  // (продолжение сессии партнёра). Иначе — с начала.
+  const turn = shareParams.value?.turn
+  startSession(
+    selectedDeckId.value,
+    selectedOrderIndex.value,
+    selectedRole.value,
+    typeof turn === 'number' ? turn : 0
+  )
   router.push('/game')
 }
 
