@@ -37,12 +37,32 @@ npm run test:watch # watch-режим
 
 ## Деплой на GitHub Pages
 
-1. Создайте репозиторий `random-coffee` на GitHub и запушьте код.
+Конфигурация **автоматически** определяет имя репо через переменную окружения `GITHUB_REPOSITORY`, которую GitHub Actions выставляет в CI. Никаких ручных правок `vite.config.js` не требуется.
+
+1. Создайте репозиторий любого имени (например `random-coffee`) и запушьте код.
 2. Settings → Pages → Build and deployment → Source: **GitHub Actions**
 3. Запуште в `main` — workflow `.github/workflows/deploy-pages.yml` автоматически соберёт и опубликует.
-4. Откройте `https://<user>.github.io/random-coffee/` — установите как PWA.
+4. Откройте `https://<user>.github.io/<repo-name>/` — установите как PWA.
 
-**Важно:** `base` в `vite.config.js` жёстко задан как `/random-coffee/`. Если репо называется иначе — измените константу `repoName`.
+**Как это работает:**
+
+| Окружение | `GITHUB_REPOSITORY` | `base` |
+|-----------|---------------------|--------|
+| Локально (`npm run dev` или `npm run build`) | отсутствует | `/` |
+| GitHub Actions, репо `random-coffee` | `r3code/random-coffee` | `/random-coffee/` |
+| GitHub Actions, репо `<user>.github.io` | `<user>/<user>.github.io` | `/` (авто-пропуск) |
+
+**Ручное переопределение** — если автоопределение не работает (например, кастомный домен):
+
+```bash
+REPO_NAME=my-custom-app NODE_ENV=production npm run build
+```
+
+или для корневого домена:
+
+```bash
+REPO_NAME= NODE_ENV=production npm run build   # base = "/"
+```
 
 ## Структура проекта
 
