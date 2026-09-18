@@ -5,6 +5,20 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [4.4.0] — 2026-09-18
+
+### Добавлено
+- `AGENTS.md` в корне проекта — гайдлайны для AI-агентов, работающих с кодом. Использует принцип gradual disclosure: краткий обзор (154 строки) + ссылки на `docs/SPEC.md` и `CHANGELOG.md` для деталей. Содержит TL;DR, обзор проекта, структуру каталогов, 6 инвариантов, которые нельзя нарушать, workflow для правок, версии стека, тестирование, PWA-особенности, UI-конвенции, git-конвенции, troubleshooting.
+- Папка `docs/` в корне проекта.
+- `docs/SPEC.md` — полная техническая спецификация (бывший `ТЗ.md`), перенесена в `docs/`. Все внутренние ссылки сохранены.
+
+### Изменено
+- `README.md` — обновлён раздел «Документация» со ссылками на `docs/SPEC.md`, `CHANGELOG.md`, `AGENTS.md`. Обновлены возможности (история сессий, install prompt, кэш-стратегия, новые роли). Структура проекта дополнена `docs/`, `AGENTS.md`, `components/InstallPrompt.vue`, `favicon.ico`.
+- Техническое задание теперь называется `SPEC.md` и лежит в `docs/`, а не `ТЗ.md` в корне.
+
+### Удалено
+- Старый `ТЗ.md` больше не создаётся в корне — заменён на `docs/SPEC.md`.
+
 ## [4.3.0] — 2026-09-17
 
 ### Добавлено
@@ -137,7 +151,8 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v4.3.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v4.4.0...HEAD
+[4.4.0]: https://github.com/r3code/random-coffee/releases/tag/v4.4.0
 [4.3.0]: https://github.com/r3code/random-coffee/releases/tag/v4.3.0
 [4.2.0]: https://github.com/r3code/random-coffee/releases/tag/v4.2.0
 [4.1.0]: https://github.com/r3code/random-coffee/releases/tag/v4.1.0
