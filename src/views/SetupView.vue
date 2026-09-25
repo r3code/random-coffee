@@ -445,66 +445,114 @@
                class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="!selectedDeckId ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">2. Выберите порядок вопросов</h2>
-            <p v-if="!selectedDeckId" class="text-sm opacity-70 mb-4">
-              ↑ Сначала выберите колоду
-            </p>
-            <p v-else class="text-sm opacity-80 mb-4">
-              Договоритесь с партнером о букве порядка — одинаковая буква даст
-              одинаковую последовательность вопросов.
-            </p>
-            <div class="grid grid-cols-5 gap-3">
-              <button
-                v-for="(order, index) in (selectedDeck?.orders || emptyOrders)"
-                :key="order?.id || index"
-                @click="selectOrder(index)"
-                :disabled="!selectedDeckId"
-                :aria-pressed="selectedOrderIndex === index"
-                :aria-label="`Порядок ${order?.name || '?'}`"
-                class="p-3 rounded-lg transition-all text-center font-bold disabled:cursor-not-allowed"
-                :class="selectedOrderIndex === index
-                  ? 'bg-yellow-500 text-gray-900'
-                  : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
-              >
-                {{ order?.name || '—' }}
-              </button>
+
+            <!-- v5.7: компактная плашка с выбранным порядком -->
+            <div
+              v-if="selectedOrderIndex !== null && !isOrderExpanded"
+              class="bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
+            >
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-2">
+                  <span class="text-3xl font-bold">{{ selectedDeck?.orders?.[selectedOrderIndex]?.name || '—' }}</span>
+                  <span class="text-sm opacity-70">порядок</span>
+                </div>
+                <button
+                  @click="expandOrder"
+                  :disabled="!selectedDeckId"
+                  class="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Выбрать другой порядок"
+                >✎ Сменить</button>
+              </div>
+            </div>
+
+            <div v-show="selectedOrderIndex === null || isOrderExpanded">
+              <p v-if="!selectedDeckId" class="text-sm opacity-70 mb-4">
+                ↑ Сначала выберите колоду
+              </p>
+              <p v-else class="text-sm opacity-80 mb-4">
+                Договоритесь с партнером о букве порядка — одинаковая буква даст
+                одинаковую последовательность вопросов.
+              </p>
+              <div class="grid grid-cols-5 gap-3">
+                <button
+                  v-for="(order, index) in (selectedDeck?.orders || emptyOrders)"
+                  :key="order?.id || index"
+                  @click="selectOrder(index)"
+                  :disabled="!selectedDeckId"
+                  :aria-pressed="selectedOrderIndex === index"
+                  :aria-label="`Порядок ${order?.name || '?'}`"
+                  class="p-3 rounded-lg transition-all text-center font-bold disabled:cursor-not-allowed"
+                  :class="selectedOrderIndex === index
+                    ? 'bg-yellow-500 text-gray-900'
+                    : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
+                >
+                  {{ order?.name || '—' }}
+                </button>
+              </div>
             </div>
           </div>
 
           <!-- Блок 3: Роль (виден, disabled пока нет порядка) -->
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity"
+          <div ref="step3Ref"
+               class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="selectedOrderIndex === null ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">3. Выберите роль</h2>
-            <p v-if="selectedOrderIndex === null" class="text-sm opacity-70 mb-4">
-              ↑ Сначала выберите порядок
-            </p>
-            <p v-else class="text-sm opacity-80 mb-4">Роли будут чередоваться каждый вопрос</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                @click="selectRole('reader')"
-                :disabled="selectedOrderIndex === null"
-                :aria-pressed="selectedRole === 'reader'"
-                class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
-                :class="selectedRole === 'reader'
-                  ? 'bg-yellow-500 text-gray-900'
-                  : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
-              >
-                <div class="text-2xl mb-2">🗣️</div>
-                <div class="font-bold">Я читаю первым</div>
-                <div class="text-sm opacity-80">Первый вопрос читаю я</div>
-              </button>
-              <button
-                @click="selectRole('listener')"
-                :disabled="selectedOrderIndex === null"
-                :aria-pressed="selectedRole === 'listener'"
-                class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
-                :class="selectedRole === 'listener'
-                  ? 'bg-yellow-500 text-gray-900'
-                  : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
-              >
-                <div class="text-2xl mb-2">👂</div>
-                <div class="font-bold">Я слушаю первым</div>
-                <div class="text-sm opacity-80">Первый вопрос читает партнер</div>
-              </button>
+
+            <!-- v5.7: компактная плашка с выбранной ролью -->
+            <div
+              v-if="selectedRole && !isRoleExpanded"
+              class="bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
+            >
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-2">
+                  <span class="text-2xl">{{ selectedRole === 'reader' ? '🗣️' : '👂' }}</span>
+                  <div>
+                    <div class="font-bold">{{ selectedRole === 'reader' ? 'Я читаю первым' : 'Я слушаю первым' }}</div>
+                    <div class="text-xs opacity-70">{{ selectedRole === 'reader' ? 'Первый вопрос читаю я' : 'Первый вопрос читает партнер' }}</div>
+                  </div>
+                </div>
+                <button
+                  @click="expandRole"
+                  :disabled="selectedOrderIndex === null"
+                  class="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Выбрать другую роль"
+                >✎ Сменить</button>
+              </div>
+            </div>
+
+            <div v-show="!selectedRole || isRoleExpanded">
+              <p v-if="selectedOrderIndex === null" class="text-sm opacity-70 mb-4">
+                ↑ Сначала выберите порядок
+              </p>
+              <p v-else class="text-sm opacity-80 mb-4">Роли будут чередоваться каждый вопрос</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  @click="selectRole('reader')"
+                  :disabled="selectedOrderIndex === null"
+                  :aria-pressed="selectedRole === 'reader'"
+                  class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
+                  :class="selectedRole === 'reader'
+                    ? 'bg-yellow-500 text-gray-900'
+                    : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
+                >
+                  <div class="text-2xl mb-2">🗣️</div>
+                  <div class="font-bold">Я читаю первым</div>
+                  <div class="text-sm opacity-80">Первый вопрос читаю я</div>
+                </button>
+                <button
+                  @click="selectRole('listener')"
+                  :disabled="selectedOrderIndex === null"
+                  :aria-pressed="selectedRole === 'listener'"
+                  class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
+                  :class="selectedRole === 'listener'
+                    ? 'bg-yellow-500 text-gray-900'
+                    : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
+                >
+                  <div class="text-2xl mb-2">👂</div>
+                  <div class="font-bold">Я слушаю первым</div>
+                  <div class="text-sm opacity-80">Первый вопрос читает партнер</div>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -522,12 +570,31 @@
             </div>
 
             <div v-else>
-              <!-- Пометка-инструкция над QR-кодом: что делать и зачем -->
+              <!-- v5.7: Пометка-инструкция — QR или отправка ссылки -->
               <div class="flex items-start gap-2 text-left mb-4 px-2">
                 <span class="text-base shrink-0 mt-0.5 opacity-70" aria-hidden="true">ℹ️</span>
                 <p class="text-xs opacity-70 leading-snug">
-                  Партнёр сканирует QR-код и сразу попадает в ту же сессию. Потом нажмите «Начать сессию».
+                  Покажите партнёру QR-код — он попадёт в ту же сессию. Или отправьте ссылку сообщением.
+                  Потом нажмите «Начать сессию».
                 </p>
+              </div>
+
+              <!-- v5.7: Ссылка над QR-кодом с кнопкой «Копировать» (не везде есть нативный Web Share) -->
+              <div class="mb-4 px-2 text-left">
+                <div class="flex items-stretch gap-2">
+                  <div class="flex-grow min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-xs text-white/90 break-all font-mono">
+                    {{ shareUrl }}
+                  </div>
+                  <button
+                    @click="handleCopyLink"
+                    :aria-label="linkCopiedRef ? 'Ссылка скопирована' : 'Копировать ссылку'"
+                    :title="linkCopiedRef ? 'Скопировано!' : 'Копировать ссылку'"
+                    class="shrink-0 px-3 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition-all"
+                    :class="linkCopiedRef ? 'text-emerald-300' : ''"
+                  >
+                    {{ linkCopiedRef ? '✓' : '📋 Копировать' }}
+                  </button>
+                </div>
               </div>
 
               <div v-if="qrDataUrl" class="inline-block bg-white p-3 rounded-lg">
@@ -536,15 +603,15 @@
               <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg">
                 <span class="text-sm opacity-70">Генерация...</span>
               </div>
-              <p class="text-xs opacity-70 mt-3 break-all">{{ shareUrl }}</p>
             </div>
           </div>
 
           <!-- Кнопка "Начать сессию" (видна, disabled пока нет роли) -->
           <button
+            ref="startButtonRef"
             @click="startGame"
             :disabled="!selectedRole"
-            class="w-full py-5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-yellow-500"
+            class="w-full py-5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-yellow-500 scroll-mt-4"
           >
             Начать сессию ➔
           </button>
@@ -639,6 +706,17 @@ const deckFilter = ref('all')  // 'all' | 'builtin' | 'custom'
 const isDeckCatalogExpanded = ref(true)
 // v5.6: ref на шаг 2 для плавного автоскролла после выбора колоды.
 const step2Ref = ref(null)
+// v5.7: ref на шаг 3 для автоскролла после выбора порядка.
+const step3Ref = ref(null)
+// v5.7: progressive disclosure для шагов 2 (порядок) и 3 (роль).
+// Та же логика, что и для каталога: после выбора — компактная плашка + «Сменить».
+const isOrderExpanded = ref(true)
+const isRoleExpanded = ref(true)
+// v5.7: ref на кнопку «Начать сессию» — для автоскролла после выбора роли.
+const startButtonRef = ref(null)
+// v5.7: визуальный feedback после копирования ссылки (✓ на 2 сек).
+const linkCopiedRef = ref(false)
+let linkCopiedTimer = null
 
 const deckFilters = computed(() => {
   const all = catalogDecks.value
@@ -906,6 +984,9 @@ onMounted(() => {
     // v5.6: колода уже выбрана — каталог коллапсируем (без скролла, без анимации,
     // пользователь только зашёл и должен сразу видеть шаг 2/3).
     isDeckCatalogExpanded.value = false
+    // v5.7: порядок и роль тоже предзаполнены — коллапсируем и их.
+    isOrderExpanded.value = false
+    isRoleExpanded.value = false
   }
   // v5.5: авто-загрузка каталога — каталог виден сразу при открытии формы.
   ensureCatalogLoaded()
@@ -917,6 +998,9 @@ function selectDeck(dId) {
   selectedRole.value = null
   // v5.6: коллапсируем каталог в плашку, плавно скроллим к шагу 2.
   isDeckCatalogExpanded.value = false
+  // v5.7: пользователь сменил колоду — шаги 2 и 3 разворачиваем (старый выбор невалиден).
+  isOrderExpanded.value = true
+  isRoleExpanded.value = true
   nextTick(() => {
     step2Ref.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
@@ -929,8 +1013,47 @@ function expandCatalog() {
   isDeckCatalogExpanded.value = true
 }
 
-function selectOrder(index) { selectedOrderIndex.value = index }
-function selectRole(r) { selectedRole.value = r }
+function selectOrder(index) {
+  selectedOrderIndex.value = index
+  // v5.7: сбрасываем выбор роли (логическая несогласованность — порядок поменялся).
+  selectedRole.value = null
+  // Если роль уже была выбрана до этого — разворачиваем её обратно (пользователь только что сменил порядок).
+  isRoleExpanded.value = true
+  // v5.7: коллапсируем шаг 2 в плашку, плавно скроллим к шагу 3.
+  isOrderExpanded.value = false
+  nextTick(() => {
+    step3Ref.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function expandOrder() {
+  isOrderExpanded.value = true
+}
+
+function selectRole(r) {
+  selectedRole.value = r
+  // v5.7: коллапсируем шаг 3 в плашку, плавно скроллим к кнопке «Начать сессию».
+  isRoleExpanded.value = false
+  nextTick(() => {
+    startButtonRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
+
+function expandRole() {
+  isRoleExpanded.value = true
+}
+
+// v5.7: копирование share-ссылки с визуальным feedback (✓ на 2 сек).
+function handleCopyLink() {
+  if (!shareUrl.value) return
+  copyToClipboard(shareUrl.value)
+  linkCopiedRef.value = true
+  if (linkCopiedTimer) clearTimeout(linkCopiedTimer)
+  linkCopiedTimer = setTimeout(() => {
+    linkCopiedRef.value = false
+    linkCopiedTimer = null
+  }, 2000)
+}
 
 function enterNewForm() {
   // Просто переключаем режим, не трогая активную сессию.
@@ -943,6 +1066,9 @@ function enterNewForm() {
   shareParams.value = null
   // v5.6: каталог разворачиваем (форма открыта заново — пользователь выбирает с нуля).
   isDeckCatalogExpanded.value = true
+  // v5.7: шаги 2 и 3 тоже разворачиваем.
+  isOrderExpanded.value = true
+  isRoleExpanded.value = true
   // v5.5: подгружаем каталог, если ещё не загружен (для случая, когда форма
   // открывается кнопкой «Новая сессия», а не при первом заходе).
   ensureCatalogLoaded()
