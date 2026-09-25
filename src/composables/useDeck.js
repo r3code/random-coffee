@@ -7,6 +7,13 @@ const activeSessionIdKey = 'coffee_active_session_id'
 const themeKey = 'theme_preference'
 const customDecksKey = 'coffee_custom_decks'
 
+// v5.4: sourcePath — метаданные происхождения колоды. Не показывается в UI,
+// хранится для диагностики и будущих фич.
+//   'embedded'              — встроенная колода (из data/decks.js)
+//   '<file.name>'           — импортирована из файла (только имя, без пути)
+//   '/path/in/repo.json'    — загружена из каталога (path из URL без домена)
+export const SOURCE_EMBEDDED = 'embedded'
+
 // Лимит на количество хранимых сессий и кастомных колод.
 const MAX_SESSIONS = 20
 const MAX_CUSTOM_DECKS = 20
@@ -110,6 +117,7 @@ function normalizeDeck(deck) {
     name: deck.name.slice(0, 128),
     description: deck.description || '',
     source: deck.source || null,
+    sourcePath: deck.sourcePath || null,           // v5.4: embedded | <file.name> | <URL path>
     version: deck.version || 1,
     lang: deck.lang || 'ru_RU',                    // v5.3
     baseDeckId: deck.baseDeckId || null,            // v5.3
@@ -236,6 +244,31 @@ const decks = computed(() => {
 
 // v5.1: deckIds — все ID (встроенные + кастомные)
 const deckIds = computed(() => Object.keys(decks.value))
+
+// v5.4: isCustomDeck — true если deckId принадлежит кастомной (загруженной) колоде.
+const isCustomDeck = (deckIdArg) => customDecks.value.some(d => d.deckId === deckIdArg)
+
+// v5.4: catalogDecks — единый список колод для UI-каталога.
+// Каждый элемент: { ...deck, kind: 'builtin' | 'custom', sourcePath }
+// Сортировка: встроенные сверху (по алфавиту имени), затем кастомные (по алфавиту имени).
+//   - У встроенных sourcePath = 'embedded' (константа SOURCE_EMBEDDED)
+//   - У кастомных sourcePath берётся из deck.sourcePath (может быть null для старых)
+const catalogDecks = computed(() => {
+  const builtin = Object.values(builtinDecks).map(d => ({
+    ...d,
+    kind: 'builtin',
+    sourcePath: SOURCE_EMBEDDED
+  }))
+  const custom = customDecks.value.map(d => ({
+    ...d,
+    kind: 'custom',
+    sourcePath: d.sourcePath ?? null
+  }))
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '', 'ru')
+  builtin.sort(byName)
+  custom.sort(byName)
+  return [...builtin, ...custom]
+})
 
 // v5.1: миграция вызывается после создания decks (т.к. использует decks.value)
 migrateV1ToV2()
@@ -615,7 +648,12 @@ function deleteSession(id) {
 // Возвращает { ok: true, deck } или { ok: false, error }.
 // При конфликте deckId — спрашивает пользователя (через confirm) —
 // «Заменить» ЗАПРЕЩЕНО, только «Новое имя» или «Отмена».
-function importDeck(deckData) {
+//
+// v5.4: опц. второй аргумент { sourcePath } — сохраняется в метаданных колоды.
+//   - файл:           sourcePath = file.name (только имя, без пути)
+//   - каталог (URL):  sourcePath = url.pathname + (url.hash || '') (без домена)
+//   - бэкап:          sourcePath переносится из бэкапа как есть (если есть)
+function importDeck(deckData, opts = {}) {
   const error = validateDeckFormat(deckData)
   if (error) return { ok: false, error }
 
@@ -651,7 +689,14 @@ function importDeck(deckData) {
     finalDeckId = newId
   }
 
-  const normalized = normalizeDeck({ ...deckData, deckId: finalDeckId })
+  // v5.4: sourcePath из opts имеет приоритет над тем, что в самом deckData
+  // (caller знает контекст — файл или URL). Если opts.sourcePath нет — берём из
+  // deckData.sourcePath (для бэкапа), иначе null.
+  const sourcePath = opts.sourcePath !== undefined
+    ? opts.sourcePath
+    : (deckData.sourcePath || null)
+
+  const normalized = normalizeDeck({ ...deckData, deckId: finalDeckId, sourcePath })
 
   // Лимит 20 кастомных колод
   if (customDecks.value.length >= MAX_CUSTOM_DECKS) {
@@ -676,6 +721,7 @@ function exportDeck(deckIdArg) {
     name: d.name,
     description: d.description || '',
     source: d.source || null,
+    sourcePath: d.sourcePath ?? null,                // v5.4
     questions: d.questions,
     orders: d.orders,
     categories: d.categories || null,
@@ -903,11 +949,24 @@ async function loadCatalog(force = false) {
 
 // loadDeckFromUrl: загружает колоду по URL (GitHub raw) и импортирует.
 // Использует importDeck для валидации и конфликта.
-async function loadDeckFromUrl(url) {
+// v5.4: sourcePath = url.pathname (+hash) — путь в репо без домена.
+//   Например: https://r3code.github.io/random-coffee-decks/deeps/foo.json
+//   → sourcePath = '/random-coffee-decks/deeps/foo.json'
+async function loadDeckFromUrl(url, opts = {}) {
   const resp = await fetch(url, { cache: 'no-cache' })
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
   const deckData = await resp.json()
-  return importDeck(deckData)
+  // Если caller явно не передал sourcePath — выводим из URL.
+  let sourcePath = opts.sourcePath
+  if (sourcePath === undefined) {
+    try {
+      const u = new URL(url)
+      sourcePath = u.pathname + (u.hash || '')
+    } catch {
+      sourcePath = null
+    }
+  }
+  return importDeck(deckData, { ...opts, sourcePath })
 }
 
 // checkDeckUpdates: для кастомной колоды с source — проверяет обновления.
@@ -1181,6 +1240,8 @@ export function useDeck() {
     decks, deckIds, customDecks,
     importDeck, exportDeck, deleteDeck, renameDeck,
     exportBackup, importBackup,
+    // v5.4: unified catalog
+    catalogDecks, isCustomDeck,
     // v5.2: catalog
     catalog, catalogLoading, catalogError, catalogLastFetch,
     loadCatalog, loadDeckFromUrl, checkDeckUpdates,

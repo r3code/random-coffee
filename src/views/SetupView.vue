@@ -245,39 +245,106 @@
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
 
-            <!-- ── Готовые колоды (встроенные + кастомные) ── -->
+            <!-- ── Единый каталог (встроенные + загруженные) ── -->
             <div>
-              <h3 class="text-sm font-bold opacity-60 mb-3"> ГОТОВЫЕ КОЛОДЫ</h3>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Шапка: поиск + фильтры + действия -->
+              <div class="flex flex-wrap items-center gap-3 mb-4">
+                <input
+                  v-model="deckSearch"
+                  type="text"
+                  placeholder="Поиск колоды..."
+                  class="flex-grow min-w-[200px] px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-500"
+                />
+                <div class="flex gap-2" role="group" aria-label="Фильтр колод">
+                  <button
+                    v-for="f in deckFilters"
+                    :key="f.value"
+                    @click="deckFilter = f.value"
+                    :aria-pressed="deckFilter === f.value"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    :class="deckFilter === f.value ? 'bg-yellow-500 text-gray-900' : 'bg-white/15 hover:bg-white/25'"
+                  >
+                    {{ f.label }} ({{ f.count }})
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2 mb-4">
+                <label class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1">
+                  📥 Импорт из файла
+                  <input type="file" accept=".json" @change="handleImportDeck" class="hidden" />
+                </label>
                 <button
-                  v-for="deckOption in availableDecks"
-                  :key="deckOption.deckId"
-                  @click="selectDeck(deckOption.deckId)"
-                  :aria-pressed="selectedDeckId === deckOption.deckId"
-                  class="p-4 rounded-lg transition-all text-left"
-                  :class="selectedDeckId === deckOption.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
+                  @click="toggleCatalog"
+                  class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg text-xs font-bold"
                 >
-                  <div class="font-bold text-lg">
-                    {{ deckOption.name }}
-                    <span v-if="deckOption.lang" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">{{ deckOption.lang.split('_')[0] }}</span>
-                  </div>
-                  <div class="text-sm opacity-80">{{ deckOption.description }}</div>
-                  <div class="text-xs mt-2 opacity-70">{{ deckOption.questions.length }} вопросов</div>
+                  📚 Загрузить из каталога
                 </button>
+              </div>
+
+              <!-- Список карточек колод -->
+              <div v-if="filteredCatalogDecks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  v-for="d in filteredCatalogDecks"
+                  :key="d.deckId"
+                  @click="selectDeck(d.deckId)"
+                  :aria-pressed="selectedDeckId === d.deckId"
+                  class="relative p-4 rounded-lg transition-all text-left"
+                  :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
+                >
+                  <div class="flex items-start justify-between gap-2 mb-1">
+                    <div class="font-bold text-lg flex items-center gap-1 min-w-0 flex-grow">
+                      <span class="truncate">{{ d.name }}</span>
+                      <span v-if="d.lang" class="text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono shrink-0">{{ d.lang.split('_')[0] }}</span>
+                    </div>
+                    <span
+                      class="shrink-0 text-[10px] px-2 py-0.5 rounded font-bold"
+                      :class="d.kind === 'builtin'
+                        ? (selectedDeckId === d.deckId ? 'bg-gray-900/20 text-gray-700' : 'bg-white/15 text-white/70')
+                        : (selectedDeckId === d.deckId ? 'bg-emerald-700/30 text-emerald-900' : 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40')"
+                      :title="d.kind === 'builtin' ? 'Встроенная колода' : 'Загруженная колода'"
+                    >
+                      {{ d.kind === 'builtin' ? 'Встроенная' : 'Загруженная' }}
+                    </span>
+                  </div>
+                  <div class="text-sm opacity-80">{{ d.description }}</div>
+                  <div class="flex items-center justify-between gap-2 mt-2">
+                    <div class="text-xs opacity-70">{{ d.questions.length }} вопросов</div>
+                    <!-- Действия только для кастомных колод. @click.stop предотвращает выбор колоды. -->
+                    <div v-if="d.kind === 'custom'" class="flex gap-1">
+                      <button
+                        @click.stop="handleExportDeck(d.deckId)"
+                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-sm"
+                        :title="'Экспортировать колоду'"
+                        aria-label="Экспортировать колоду"
+                      >↓</button>
+                      <button
+                        @click.stop="handleDeleteDeck(d.deckId)"
+                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white rounded-lg text-sm"
+                        :title="'Удалить колоду'"
+                        aria-label="Удалить колоду"
+                      >✕</button>
+                      <button
+                        v-if="d.source"
+                        @click.stop="handleCheckUpdates(d.deckId)"
+                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-blue-500 rounded-lg text-sm"
+                        :title="'Проверить обновления'"
+                        aria-label="Проверить обновления"
+                      >🔄</button>
+                    </div>
+                  </div>
+                </button>
+              </div>
+              <div v-else class="text-center py-8 opacity-70 text-sm">
+                Ничего не найдено. Попробуйте изменить поиск или фильтр,
+                либо импортируйте колоду из файла / каталога.
               </div>
             </div>
 
-            <!-- ── Каталог колод (из репо) ── -->
-            <div class="mt-6 pt-4 border-t border-white/10">
-              <h3 class="text-sm font-bold opacity-60 mb-3">КАТАЛОГ КОЛОД</h3>
-              <button
-                @click="toggleCatalog"
-                class="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 rounded-lg font-bold text-sm"
-              >
-                📚 Открыть каталог
-              </button>
-
-              <div v-if="showCatalog" class="mt-3 bg-white/10 rounded-xl p-4">
+            <!-- ── Каталог колод (из репо) — сворачиваемый ── -->
+            <div v-if="showCatalog" class="mt-6 pt-4 border-t border-white/10">
+              <h3 class="text-sm font-bold opacity-60 mb-3">КАТАЛОГ КОЛОД (УДАЛЁННЫЕ)</h3>
+              <div class="bg-white/10 rounded-xl p-4">
                 <input
                   v-model="catalogSearch"
                   type="text"
@@ -290,31 +357,33 @@
                 </div>
                 <div v-else-if="catalogError && catalog.length === 0" class="text-center py-4 opacity-70 text-sm">
                   ⚠️ Не удалось загрузить каталог: {{ catalogError }}
-                  <button @click="toggleCatalog" class="block mx-auto mt-2 text-blue-400 hover:underline text-xs">Повторить</button>
+                  <button @click="refreshCatalog" class="block mx-auto mt-2 text-blue-400 hover:underline text-xs">Повторить</button>
                 </div>
 
-                <!-- Список колод — описание полностью, кнопка снизу -->
+                <!-- Список колод — описание полностью, кнопка снизу. Скрываем уже загруженные. -->
                 <div v-else class="space-y-3 max-h-80 overflow-y-auto">
                   <div
-                    v-for="item in filteredCatalog"
+                    v-for="item in filteredRemoteCatalog"
                     :key="item.deckId"
                     class="bg-white/10 rounded-lg p-4"
                   >
                     <div class="font-bold">{{ item.name }}
                       <span v-if="item.lang" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">{{ item.lang.split('_')[0] }}</span>
+                    <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold">В каталоге</span>
+                    <span v-if="isDeckAlreadyLoaded(item.deckId)" class="ml-1 text-[10px] opacity-70">✓ загружена</span>
                     </div>
                     <div class="text-sm opacity-70 mt-1">{{ item.description }}</div>
                     <div class="text-xs opacity-50 mt-1">{{ item.questionsCount || '?' }} вопросов</div>
                     <button
                       @click="handleLoadFromCatalog(item)"
-                      :disabled="catalogLoadingDeck === item.deckId"
-                      class="mt-3 w-full py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 rounded-lg text-sm font-bold"
+                      :disabled="catalogLoadingDeck === item.deckId || isDeckAlreadyLoaded(item.deckId)"
+                      class="mt-3 w-full py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-bold"
                     >
-                      {{ catalogLoadingDeck === item.deckId ? '⏳ Загрузка...' : 'Загрузить' }}
+                      {{ catalogLoadingDeck === item.deckId ? '⏳ Загрузка...' : (isDeckAlreadyLoaded(item.deckId) ? '✓ Уже загружена' : 'Загрузить') }}
                     </button>
                   </div>
-                  <div v-if="filteredCatalog.length === 0" class="text-center py-4 opacity-70 text-sm">
-                    Ничего не найдено
+                  <div v-if="filteredRemoteCatalog.length === 0" class="text-center py-4 opacity-70 text-sm">
+                    Все колоды из каталога уже загружены, или ничего не найдено.
                   </div>
                 </div>
 
@@ -323,41 +392,6 @@
                     Обновлено: {{ formatCatalogDate(catalogLastFetch) }}
                   </span>
                   <button @click="refreshCatalog" class="text-blue-400 hover:underline">↻ Обновить</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- ── Импорт из файла ── -->
-            <div class="mt-6 pt-4 border-t border-white/10">
-              <h3 class="text-sm font-bold opacity-60 mb-3">ИМПОРТ ИЗ ФАЙЛА</h3>
-              <div class="flex gap-3 flex-wrap">
-                <label class="px-4 py-2 bg-purple-500 hover:bg-purple-400 rounded-lg font-bold text-sm cursor-pointer">
-                  📥 Импортировать из файла
-                  <input type="file" accept=".json" @change="handleImportDeck" class="hidden" />
-                </label>
-                <button
-                  v-if="customDecks.length > 0"
-                  @click="showMyDecks = !showMyDecks"
-                  class="px-4 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg font-bold text-sm"
-                >
-                  📋 Мои колоды ({{ customDecks.length }})
-                </button>
-              </div>
-
-              <!-- Мои колоды — список управления -->
-              <div v-if="showMyDecks && customDecks.length > 0" class="mt-4 space-y-3">
-                <div
-                  v-for="cd in customDecks"
-                  :key="cd.deckId"
-                  class="bg-white/10 rounded-lg p-3 flex items-center gap-3"
-                >
-                  <div class="flex-grow min-w-0">
-                    <div class="font-bold truncate">{{ cd.name }}</div>
-                    <div class="text-xs opacity-70">{{ cd.questions.length }} вопросов • {{ cd.deckId }}</div>
-                  </div>
-                  <button @click="handleExportDeck(cd.deckId)" class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-base" title="Экспортировать колоду">↓</button>
-                  <button @click="handleDeleteDeck(cd.deckId)" class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white rounded-lg text-base" title="Удалить колоду">✕</button>
-                  <button v-if="cd.source" @click="handleCheckUpdates(cd.deckId)" class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-blue-500 rounded-lg text-base" title="Проверить обновления">🔄</button>
                 </div>
               </div>
             </div>
@@ -539,17 +573,45 @@ const {
   // v5.1: custom decks
   decks, customDecks, importDeck, exportDeck, deleteDeck, renameDeck,
   exportBackup, importBackup,
-  // v5.2: catalog
+  // v5.4: unified catalog
+  catalogDecks, isCustomDeck,
+  // v5.2: catalog (remote)
   catalog, catalogLoading, catalogError, catalogLastFetch,
   loadCatalog, loadDeckFromUrl, checkDeckUpdates
 } = useDeck()
 
-const availableDecks = computed(() => Object.values(decks.value))
 // Пустой массив порядков для отображения 10 disabled-кнопок до выбора колоды
 const emptyOrders = Array.from({ length: 10 }, (_, i) => ({
   id: `empty_${i}`,
   name: String.fromCharCode(65 + i)
 }))
+
+// ─── v5.4: Единый каталог колод (поиск + фильтры) ─────────────
+const deckSearch = ref('')
+const deckFilter = ref('all')  // 'all' | 'builtin' | 'custom'
+
+const deckFilters = computed(() => {
+  const all = catalogDecks.value
+  const builtinCount = all.filter(d => d.kind === 'builtin').length
+  const customCount = all.filter(d => d.kind === 'custom').length
+  return [
+    { value: 'all', label: 'Все', count: all.length },
+    { value: 'builtin', label: 'Встроенные', count: builtinCount },
+    { value: 'custom', label: 'Загруженные', count: customCount }
+  ]
+})
+
+const filteredCatalogDecks = computed(() => {
+  const q = deckSearch.value.trim().toLowerCase()
+  return catalogDecks.value.filter(d => {
+    if (deckFilter.value !== 'all' && d.kind !== deckFilter.value) return false
+    if (!q) return true
+    return (
+      (d.name || '').toLowerCase().includes(q) ||
+      (d.description || '').toLowerCase().includes(q)
+    )
+  })
+})
 
 // ─── Состояние формы ─────────────────────────────────────────
 const showNewForm = ref(false)
@@ -564,17 +626,25 @@ const highlightedSessionId = ref(null)
 // v5.0: inline-переименование сессии
 const renamingSessionId = ref(null)
 const renamingValue = ref('')
-// v5.1: Мои колоды
-const showMyDecks = ref(false)
-// v5.2: Каталог
+// v5.2: Каталог (remote)
 const showCatalog = ref(false)
 const catalogSearch = ref('')
 const catalogLoadingDeck = ref('')
 
-const filteredCatalog = computed(() => {
-  if (!catalogSearch.value.trim()) return catalog.value
-  const q = catalogSearch.value.toLowerCase()
-  return catalog.value.filter(item =>
+// v5.4: фильтр удалённого каталога — скрывает уже загруженные колоды.
+// (isDeckAlreadyLoaded проверяет и встроенные, и кастомные.)
+function isDeckAlreadyLoaded(deckIdArg) {
+  return deckIdArg in decks.value
+}
+
+const filteredRemoteCatalog = computed(() => {
+  let items = catalog.value
+  // Скрываем уже загруженные
+  items = items.filter(item => !isDeckAlreadyLoaded(item.deckId))
+  // Поиск
+  const q = catalogSearch.value.trim().toLowerCase()
+  if (!q) return items
+  return items.filter(item =>
     (item.name || '').toLowerCase().includes(q) ||
     (item.description || '').toLowerCase().includes(q)
   )
@@ -872,7 +942,8 @@ async function handleImportDeck(event) {
   try {
     const text = await file.text()
     const deckData = JSON.parse(text)
-    const result = importDeck(deckData)
+    // v5.4: sourcePath = file.name (только имя, без пути)
+    const result = importDeck(deckData, { sourcePath: file.name })
     if (result.ok) {
       alert(`Колода "${result.deck.name}" загружена (${result.deck.questions.length} вопросов)`)
     } else {

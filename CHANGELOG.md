@@ -17,6 +17,34 @@
 - Карточка истории: кнопка «Открыть» показывается всегда (включая активную сессию). Бейдж «● Активна» убран.
 - Карточка игры: кнопка ⊗ вместо 🏠. Полоска категории `absolute top-0` (в самом верху, не сдвигает текст). Текст вопроса центрирован (`pt-6 pb-10`).
 
+## [5.4.0] — 2026-09-25
+
+### Добавлено
+- **Единый каталог колод** — встроенные и загруженные колоды теперь в одном списке (как extensions в VSCode), а не в трёх раздельных секциях. У каждой колоды — бейдж типа: «Встроенная» (приглушённый) или «Загруженная» (изумрудный, с тонкой рамкой).
+- **Поиск и фильтры** в каталоге: строка поиска по имени и описанию + чипы-фильтры «Все / Встроенные / Загруженные» со счётчиками.
+- **sourcePath** — новые метаданные происхождения колоды (не показываются в UI, хранятся для диагностики):
+  - `'embedded'` — встроенная колода;
+  - `'<file.name>'` — импортирована из файла (только имя, без пути);
+  - `'/path/in/repo.json'` — загружена из каталога (path из URL без домена, например `/random-coffee-decks/deeps/foo-ru_RU.json`).
+- **`catalogDecks`** — новый computed в `useDeck()`: массив `{ ...deck, kind: 'builtin' | 'custom', sourcePath }`, отсортированный — встроенные сверху (по алфавиту имени), затем кастомные (по алфавиту имени).
+- **`isCustomDeck(deckId)`** — helper, true если колода принадлежит кастомным (загруженным).
+- **`SOURCE_EMBEDDED`** — экспортируемая константа `'embedded'` для sourcePath встроенных колод.
+- Кнопки управления кастомной колодой (↓ экспорт, ✕ удалить, 🔄 проверить обновления) теперь прямо на карточке колоды в каталоге. `@click.stop` предотвращает выбор колоды при клике по кнопке.
+- В удалённом каталоге колоды, уже загруженные локально, помечаются «✓ загружена» и кнопка «Загрузить» disabled. Список скрывает уже загруженные по умолчанию.
+- 11 новых тестов Vitest (всего 114): `catalogDecks` (сортировка, kind, sourcePath), `isCustomDeck`, `importDeck` sourcePath (opts, deckData, приоритет opts, без sourcePath), `loadDeckFromUrl` выводит sourcePath из URL pathname.
+
+### Изменено
+- `importDeck(deckData, opts = {})` — опциональный второй аргумент `{ sourcePath }`. Если задан — имеет приоритет над `deckData.sourcePath` (для файла caller знает имя). Если не задан — берётся `deckData.sourcePath` (для бэкапа). Иначе `null`.
+- `loadDeckFromUrl(url, opts = {})` — автоматически выводит `sourcePath` из URL: `url.pathname + (url.hash || '')`. Caller может передать свой `sourcePath` в opts.
+- `normalizeDeck` — добавлено поле `sourcePath` (по умолчанию `null`).
+- `exportDeck` — выгрузка теперь содержит `sourcePath` (для пере-импорта без потери метаданных).
+- `SetupView.vue` — три раздельные секции («ГОТОВЫЕ КОЛОДЫ» / «КАТАЛОГ КОЛОД» / «ИМПОРТ ИЗ ФАЙЛА + МОИ КОЛОДЫ») заменены одним единым каталогом. Удалены `showMyDecks`, `availableDecks`, `filteredCatalog` (заменён на `filteredCatalogDecks` + `filteredRemoteCatalog`). Добавлены `deckSearch`, `deckFilter`, `deckFilters`, `filteredCatalogDecks`, `isDeckAlreadyLoaded`, `filteredRemoteCatalog`.
+- Удалённая панель каталога теперь показывается под кнопкой «📚 Загрузить из каталога» (а не отдельным блоком). Кнопка переименована «Открыть каталог» → «Загрузить из каталога» (более точное действие).
+
+### Удалено
+- Кнопка «📋 Мои колоды» (отдельный список управления) — функционал перенесён в карточки каталога.
+- Секция «ГОТОВЫЕ КОЛОДЫ» — объединена с кастомными в единый список.
+
 ## [5.3.0] — 2026-09-22
 
 ### Исправлено
@@ -240,7 +268,8 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.3.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.4.0...HEAD
+[5.4.0]: https://github.com/r3code/random-coffee/releases/tag/v5.4.0
 [5.3.0]: https://github.com/r3code/random-coffee/releases/tag/v5.3.0
 [5.2.0]: https://github.com/r3code/random-coffee/releases/tag/v5.2.0
 [5.1.0]: https://github.com/r3code/random-coffee/releases/tag/v5.1.0
