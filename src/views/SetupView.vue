@@ -245,8 +245,40 @@
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
 
+            <!-- v5.6: компактная плашка с выбранной колодой — показывается после выбора,
+                 пока пользователь не нажмёт «Сменить».Освобождает место для шагов 2/3. -->
+            <div
+              v-if="selectedDeckId && !isDeckCatalogExpanded"
+              class="bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
+            >
+              <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ selectedDeck?.name }}</div>
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-1 flex-wrap">
+                  <span
+                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                    :class="isCustomDeck(selectedDeckId)
+                      ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
+                      : 'bg-white/15 text-white/80 border-white/20'"
+                  >
+                    {{ isCustomDeck(selectedDeckId) ? 'Загруженная' : 'Встроенная' }}
+                  </span>
+                  <span
+                    v-if="selectedDeck?.lang"
+                    class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-white/15 text-white/80 border-white/20"
+                  >{{ selectedDeck.lang.split('_')[0] }}</span>
+                  <span class="text-xs opacity-70 ml-1">{{ selectedDeck?.questions.length }} вопросов</span>
+                </div>
+                <button
+                  @click="expandCatalog"
+                  class="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold"
+                  title="Выбрать другую колоду"
+                >✎ Сменить</button>
+              </div>
+            </div>
+
             <!-- ── Единый каталог (встроенные + загруженные + доступные для загрузки) ── -->
-            <div>
+            <!-- v5.6: показываем каталог если колода не выбрана, ИЛИ пользователь нажал «Сменить» -->
+            <div v-show="!selectedDeckId || isDeckCatalogExpanded">
               <!-- Шапка: поиск с кнопкой очистки + фильтры + импорт из файла -->
               <div class="flex flex-wrap items-center gap-3 mb-4">
                 <div class="relative flex-grow min-w-[200px]">
@@ -409,7 +441,8 @@
           </div>
 
           <!-- Блок 2: Порядок (виден, disabled пока нет колоды) -->
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity"
+          <div ref="step2Ref"
+               class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="!selectedDeckId ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">2. Выберите порядок вопросов</h2>
             <p v-if="!selectedDeckId" class="text-sm opacity-70 mb-4">
@@ -542,7 +575,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { useDeck, buildShareUrl, parseShareUrl } from '@/composables/useDeck'
@@ -600,6 +633,12 @@ const emptyOrders = Array.from({ length: 10 }, (_, i) => ({
 // ─── v5.4: Единый каталог колод (поиск + фильтры) ─────────────
 const deckSearch = ref('')
 const deckFilter = ref('all')  // 'all' | 'builtin' | 'custom'
+// v5.6: progressive disclosure — после выбора колоды каталог коллапсируется
+// в компактную плашку, чтобы освободить место для шага 2.
+// true = каталог развёрнут (виден полный список); false = показана плашка.
+const isDeckCatalogExpanded = ref(true)
+// v5.6: ref на шаг 2 для плавного автоскролла после выбора колоды.
+const step2Ref = ref(null)
 
 const deckFilters = computed(() => {
   const all = catalogDecks.value
@@ -864,6 +903,9 @@ onMounted(() => {
     selectedOrderIndex.value = parsed.order
     selectedRole.value = parsed.role
     showNewForm.value = true
+    // v5.6: колода уже выбрана — каталог коллапсируем (без скролла, без анимации,
+    // пользователь только зашёл и должен сразу видеть шаг 2/3).
+    isDeckCatalogExpanded.value = false
   }
   // v5.5: авто-загрузка каталога — каталог виден сразу при открытии формы.
   ensureCatalogLoaded()
@@ -873,6 +915,18 @@ function selectDeck(dId) {
   selectedDeckId.value = dId
   selectedOrderIndex.value = null
   selectedRole.value = null
+  // v5.6: коллапсируем каталог в плашку, плавно скроллим к шагу 2.
+  isDeckCatalogExpanded.value = false
+  nextTick(() => {
+    step2Ref.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+// v5.6: разворачиваем каталог обратно (кнопка «Сменить» на плашке).
+// Состояние selectedDeckId НЕ сбрасываем — пользователь просто хочет выбрать
+// другую колоду; текущая остаётся выделенной как fallback, пока он не кликнет новую.
+function expandCatalog() {
+  isDeckCatalogExpanded.value = true
 }
 
 function selectOrder(index) { selectedOrderIndex.value = index }
@@ -887,6 +941,8 @@ function enterNewForm() {
   selectedOrderIndex.value = null
   selectedRole.value = null
   shareParams.value = null
+  // v5.6: каталог разворачиваем (форма открыта заново — пользователь выбирает с нуля).
+  isDeckCatalogExpanded.value = true
   // v5.5: подгружаем каталог, если ещё не загружен (для случая, когда форма
   // открывается кнопкой «Новая сессия», а не при первом заходе).
   ensureCatalogLoaded()
