@@ -1201,3 +1201,247 @@ describe('useDeck — v5.4 unified catalog', () => {
     expect(item.sourcePath).toBe('file.json')
   })
 })
+
+// ─── v5.5: edge cases (валидация, откат, активная сессия) ──────────
+
+describe('useDeck — v5.5 edge cases', () => {
+  let useDeck
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    useDeck = mod.useDeck
+  })
+
+  function makeDeck(overrides = {}) {
+    return {
+      deckId: 'custom-test',
+      name: 'Моя кастомная',
+      description: 'Для тестов',
+      questions: [
+        { id: 'c1', text: 'В1?' },
+        { id: 'c2', text: 'В2?' },
+        { id: 'c3', text: 'В3?' }
+      ],
+      ...overrides
+    }
+  }
+
+  // ── Валидация имени ──
+
+  it('validateDeckFormat через importDeck: пустое имя (только пробелы) — ошибка', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ name: '   ' }))
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/Имя колоды обязательно/)
+  })
+
+  it('validateDeckFormat через importDeck: пустое имя (null) — ошибка', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ name: null }))
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/Имя колоды обязательно/)
+  })
+
+  it('importDeck: имя триммируется (пробелы по краям обрезаются)', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ name: '  Моя колода  ' }))
+    expect(res.ok).toBe(true)
+    expect(res.deck.name).toBe('Моя колода')
+  })
+
+  // ── Валидация уникальности q.id ──
+
+  it('validateDeckFormat: дубликаты q.id — ошибка', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({
+      questions: [
+        { id: 'c1', text: 'В1?' },
+        { id: 'c1', text: 'В2?' }  // дубликат
+      ]
+    }))
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/Дубликат id вопроса.*c1/)
+  })
+
+  it('validateDeckFormat: уникальные q.id — OK', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({
+      questions: [
+        { id: 'c1', text: 'В1?' },
+        { id: 'c2', text: 'В2?' }
+      ]
+    }))
+    expect(res.ok).toBe(true)
+  })
+
+  // ── Откат при переполнении localStorage ──
+
+  it('importDeck: откат, если localStorage.setItem бросает QuotaExceededError', () => {
+    const d = useDeck()
+    // vi.spyOn — корректный способ мокать localStorage в jsdom
+    const spy = vi.spyOn(Storage.prototype, 'setItem')
+      .mockImplementation((key, value) => {
+        if (key === 'coffee_custom_decks') {
+          throw new DOMException('QuotaExceededError', 'QuotaExceededError')
+        }
+        // для остальных ключей — делегируем в реальный setItem
+        // (spy.mockRestore вернёт оригинал в finally)
+      })
+    try {
+      const res = d.importDeck(makeDeck({ deckId: 'quota-test' }))
+      expect(res.ok).toBe(false)
+      expect(res.error).toMatch(/localStorage/)
+      // Колода НЕ должна остаться в customDecks
+      expect(d.customDecks.value.find(x => x.deckId === 'quota-test')).toBeUndefined()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('deleteDeck: откат, если saveCustomDecks не удался', () => {
+    const d = useDeck()
+    d.importDeck(makeDeck({ deckId: 'del-test' }))
+    expect(d.customDecks.value).toHaveLength(1)
+    // vi.spyOn — корректный способ
+    const spy = vi.spyOn(Storage.prototype, 'setItem')
+      .mockImplementation((key) => {
+        if (key === 'coffee_custom_decks') {
+          throw new DOMException('QuotaExceededError', 'QuotaExceededError')
+        }
+      })
+    global.confirm = vi.fn(() => true)
+    try {
+      const result = d.deleteDeck('del-test')
+      expect(result).toBe(false)
+      // Колода осталась (откат)
+      expect(d.customDecks.value.find(x => x.deckId === 'del-test')).toBeDefined()
+    } finally {
+      spy.mockRestore()
+      delete global.confirm
+    }
+  })
+
+  it('renameDeck: откат, если saveCustomDecks не удался', () => {
+    const d = useDeck()
+    d.importDeck(makeDeck({ deckId: 'ren-test' }))
+    const origName = d.customDecks.value.find(x => x.deckId === 'ren-test').name
+    const spy = vi.spyOn(Storage.prototype, 'setItem')
+      .mockImplementation((key) => {
+        if (key === 'coffee_custom_decks') {
+          throw new DOMException('QuotaExceededError', 'QuotaExceededError')
+        }
+      })
+    try {
+      const result = d.renameDeck('ren-test', 'Новое имя')
+      expect(result).toBe(false)
+      // Имя осталось прежним (откат)
+      expect(d.customDecks.value.find(x => x.deckId === 'ren-test').name).toBe(origName)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  // ── deleteDeck активной сессии ──
+
+  it('deleteDeck: если колода в активной сессии — confirm с предупреждением и сброс activeSessionId', () => {
+    const d = useDeck()
+    // Создаём колоду и активную сессию с ней
+    d.importDeck(makeDeck({ deckId: 'active-deck' }))
+    d.startSession('active-deck', 0, 'reader')
+    expect(d.activeSessionId.value).toBeTruthy()
+    expect(d.deckId.value).toBe('active-deck')
+
+    // Подтверждаем удаление
+    global.confirm = vi.fn(() => true)
+    try {
+      const result = d.deleteDeck('active-deck')
+      expect(result).toBe(true)
+      // Активная сессия завершена — сброшена
+      expect(d.activeSessionId.value).toBeNull()
+      expect(d.deckId.value).toBeNull()
+      // Колода удалена
+      expect(d.customDecks.value.find(x => x.deckId === 'active-deck')).toBeUndefined()
+    } finally {
+      delete global.confirm
+    }
+  })
+
+  it('deleteDeck: если пользователь отменил confirm — колода остаётся', () => {
+    const d = useDeck()
+    d.importDeck(makeDeck({ deckId: 'stay-deck' }))
+    global.confirm = vi.fn(() => false)
+    try {
+      const result = d.deleteDeck('stay-deck')
+      expect(result).toBe(false)
+      expect(d.customDecks.value.find(x => x.deckId === 'stay-deck')).toBeDefined()
+    } finally {
+      delete global.confirm
+    }
+  })
+
+  it('deleteDeck: confirm-сообщение упоминает «активная сессия» если колода активна', () => {
+    const d = useDeck()
+    d.importDeck(makeDeck({ deckId: 'active-deck-2', name: 'Активная Колода' }))
+    d.startSession('active-deck-2', 0, 'reader')
+    let confirmMsg = ''
+    global.confirm = vi.fn((msg) => {
+      confirmMsg = msg
+      return false  // отменяем, чтобы не влиять на остальное
+    })
+    try {
+      d.deleteDeck('active-deck-2')
+      expect(confirmMsg).toMatch(/активн/iu)
+      expect(confirmMsg).toContain('Активная Колода')
+    } finally {
+      delete global.confirm
+    }
+  })
+
+  // ── loadCatalog применяет дефолт lang ──
+
+  it('loadCatalog: элементы без lang получают дефолт ru_RU', async () => {
+    const d = useDeck()
+    const mockCatalog = [
+      { deckId: 'no-lang', name: 'Без lang', url: 'https://x/y.json' },
+      { deckId: 'with-lang', name: 'С lang', lang: 'en_US', url: 'https://x/z.json' }
+    ]
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockCatalog)
+    }))
+    try {
+      await d.loadCatalog(true)
+      const noLang = d.catalog.value.find(x => x.deckId === 'no-lang')
+      const withLang = d.catalog.value.find(x => x.deckId === 'with-lang')
+      expect(noLang.lang).toBe('ru_RU')
+      expect(withLang.lang).toBe('en_US')
+    } finally {
+      global.fetch.mockRestore?.()
+    }
+  })
+
+  // ── checkDeckUpdates 404 ──
+
+  it('checkDeckUpdates: HTTP 404 → notFound: true, дружелюбное сообщение', async () => {
+    const d = useDeck()
+    d.importDeck(makeDeck({
+      deckId: 'gone-deck',
+      source: 'https://example.com/gone.json',
+      version: 5
+    }))
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: false,
+      status: 404
+    }))
+    try {
+      const result = await d.checkDeckUpdates('gone-deck')
+      expect(result.ok).toBe(false)
+      expect(result.notFound).toBe(true)
+      expect(result.error).toMatch(/больше недоступна/iu)
+    } finally {
+      global.fetch.mockRestore?.()
+    }
+  })
+})

@@ -245,16 +245,28 @@
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
 
-            <!-- ── Единый каталог (встроенные + загруженные) ── -->
+            <!-- ── Единый каталог (встроенные + загруженные + доступные для загрузки) ── -->
             <div>
-              <!-- Шапка: поиск + фильтры + действия -->
+              <!-- Шапка: поиск с кнопкой очистки + фильтры + импорт из файла -->
               <div class="flex flex-wrap items-center gap-3 mb-4">
-                <input
-                  v-model="deckSearch"
-                  type="text"
-                  placeholder="Поиск колоды..."
-                  class="flex-grow min-w-[200px] px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-500"
-                />
+                <div class="relative flex-grow min-w-[200px]">
+                  <input
+                    ref="deckSearchInput"
+                    v-model="deckSearch"
+                    type="text"
+                    placeholder="Поиск по имени или описанию..."
+                    @keydown.esc="deckSearch = ''"
+                    class="w-full pl-3 pr-9 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-500"
+                  />
+                  <button
+                    v-if="deckSearch.length > 0"
+                    @click="deckSearch = ''; deckSearchInput?.focus()"
+                    aria-label="Очистить поиск"
+                    title="Очистить (Esc)"
+                    class="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 rounded"
+                    type="button"
+                  >✕</button>
+                </div>
                 <div class="flex gap-2" role="group" aria-label="Фильтр колод">
                   <button
                     v-for="f in deckFilters"
@@ -267,23 +279,16 @@
                     {{ f.label }} ({{ f.count }})
                   </button>
                 </div>
-              </div>
-
-              <div class="flex flex-wrap gap-2 mb-4">
-                <label class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1">
+                <label class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1" title="Импортировать колоду из .json файла">
                   📥 Импорт из файла
                   <input type="file" accept=".json" @change="handleImportDeck" class="hidden" />
                 </label>
-                <button
-                  @click="toggleCatalog"
-                  class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg text-xs font-bold"
-                >
-                  📚 Загрузить из каталога
-                </button>
               </div>
 
-              <!-- Список карточек колод -->
-              <div v-if="filteredCatalogDecks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- ── Секция «Загруженные» (встроенные + кастомные) ── -->
+              <div>
+                <h3 class="text-sm font-bold opacity-60 mb-3">ЗАГРУЖЕННЫЕ</h3>
+                <div v-if="filteredCatalogDecks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   v-for="d in filteredCatalogDecks"
                   :key="d.deckId"
@@ -292,20 +297,25 @@
                   class="relative p-4 rounded-lg transition-all text-left"
                   :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
                 >
-                  <div class="flex items-start justify-between gap-2 mb-1">
-                    <div class="font-bold text-lg flex items-center gap-1 min-w-0 flex-grow">
-                      <span class="truncate">{{ d.name }}</span>
-                      <span v-if="d.lang" class="text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono shrink-0">{{ d.lang.split('_')[0] }}</span>
-                    </div>
+                  <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
+                  <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ d.name }}</div>
+                  <!-- Бейджи одного размера: тип + lang. leading-none + одинаковый padding + border. -->
+                  <div class="flex items-center gap-1 mb-2">
                     <span
-                      class="shrink-0 text-[10px] px-2 py-0.5 rounded font-bold"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                       :class="d.kind === 'builtin'
-                        ? (selectedDeckId === d.deckId ? 'bg-gray-900/20 text-gray-700' : 'bg-white/15 text-white/70')
-                        : (selectedDeckId === d.deckId ? 'bg-emerald-700/30 text-emerald-900' : 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40')"
+                        ? (selectedDeckId === d.deckId ? 'bg-gray-900/10 text-gray-700 border-gray-900/20' : 'bg-white/15 text-white/80 border-white/20')
+                        : (selectedDeckId === d.deckId ? 'bg-emerald-700/30 text-emerald-900 border-emerald-700/30' : 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40')"
                       :title="d.kind === 'builtin' ? 'Встроенная колода' : 'Загруженная колода'"
                     >
                       {{ d.kind === 'builtin' ? 'Встроенная' : 'Загруженная' }}
                     </span>
+                    <span
+                      v-if="d.lang"
+                      class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border"
+                      :class="selectedDeckId === d.deckId ? 'bg-gray-900/10 text-gray-700 border-gray-900/20' : 'bg-white/15 text-white/80 border-white/20'"
+                      :title="`Язык колоды: ${d.lang}`"
+                    >{{ d.lang.split('_')[0] }}</span>
                   </div>
                   <div class="text-sm opacity-80">{{ d.description }}</div>
                   <div class="flex items-center justify-between gap-2 mt-2">
@@ -315,83 +325,84 @@
                       <button
                         @click.stop="handleExportDeck(d.deckId)"
                         class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-sm"
-                        :title="'Экспортировать колоду'"
+                        title="Экспортировать колоду"
                         aria-label="Экспортировать колоду"
                       >↓</button>
                       <button
                         @click.stop="handleDeleteDeck(d.deckId)"
                         class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white rounded-lg text-sm"
-                        :title="'Удалить колоду'"
+                        title="Удалить колоду"
                         aria-label="Удалить колоду"
                       >✕</button>
                       <button
                         v-if="d.source"
                         @click.stop="handleCheckUpdates(d.deckId)"
                         class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-blue-500 rounded-lg text-sm"
-                        :title="'Проверить обновления'"
+                        title="Проверить обновления"
                         aria-label="Проверить обновления"
                       >🔄</button>
                     </div>
                   </div>
                 </button>
               </div>
-              <div v-else class="text-center py-8 opacity-70 text-sm">
-                Ничего не найдено. Попробуйте изменить поиск или фильтр,
-                либо импортируйте колоду из файла / каталога.
+                <div v-else class="text-center py-6 opacity-70 text-sm">
+                  Ничего не найдено. Измените поиск или фильтр, либо импортируйте колоду из файла.
+                </div>
               </div>
             </div>
 
-            <!-- ── Каталог колод (из репо) — сворачиваемый ── -->
-            <div v-if="showCatalog" class="mt-6 pt-4 border-t border-white/10">
-              <h3 class="text-sm font-bold opacity-60 mb-3">КАТАЛОГ КОЛОД (УДАЛЁННЫЕ)</h3>
-              <div class="bg-white/10 rounded-xl p-4">
-                <input
-                  v-model="catalogSearch"
-                  type="text"
-                  placeholder="Поиск по названию..."
-                  class="w-full mb-3 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-500"
-                />
-
-                <div v-if="catalogLoading" class="text-center py-4 opacity-70 text-sm">
-                  🔄 Загрузка каталога...
-                </div>
-                <div v-else-if="catalogError && catalog.length === 0" class="text-center py-4 opacity-70 text-sm">
-                  ⚠️ Не удалось загрузить каталог: {{ catalogError }}
-                  <button @click="refreshCatalog" class="block mx-auto mt-2 text-blue-400 hover:underline text-xs">Повторить</button>
-                </div>
-
-                <!-- Список колод — описание полностью, кнопка снизу. Скрываем уже загруженные. -->
-                <div v-else class="space-y-3 max-h-80 overflow-y-auto">
-                  <div
-                    v-for="item in filteredRemoteCatalog"
-                    :key="item.deckId"
-                    class="bg-white/10 rounded-lg p-4"
-                  >
-                    <div class="font-bold">{{ item.name }}
-                      <span v-if="item.lang" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">{{ item.lang.split('_')[0] }}</span>
-                    <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold">В каталоге</span>
-                    <span v-if="isDeckAlreadyLoaded(item.deckId)" class="ml-1 text-[10px] opacity-70">✓ загружена</span>
-                    </div>
-                    <div class="text-sm opacity-70 mt-1">{{ item.description }}</div>
-                    <div class="text-xs opacity-50 mt-1">{{ item.questionsCount || '?' }} вопросов</div>
-                    <button
-                      @click="handleLoadFromCatalog(item)"
-                      :disabled="catalogLoadingDeck === item.deckId || isDeckAlreadyLoaded(item.deckId)"
-                      class="mt-3 w-full py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-bold"
-                    >
-                      {{ catalogLoadingDeck === item.deckId ? '⏳ Загрузка...' : (isDeckAlreadyLoaded(item.deckId) ? '✓ Уже загружена' : 'Загрузить') }}
-                    </button>
-                  </div>
-                  <div v-if="filteredRemoteCatalog.length === 0" class="text-center py-4 opacity-70 text-sm">
-                    Все колоды из каталога уже загружены, или ничего не найдено.
-                  </div>
-                </div>
-
-                <div class="mt-3 flex items-center justify-between text-xs opacity-50">
+            <!-- ── Разделитель + секция «Доступны для загрузки» ── -->
+            <!-- Скрывается при фильтре 'builtin'/'custom' — пользователь явно хочет только локальное -->
+            <div v-if="deckFilter === 'all'" class="mt-6 pt-4 border-t border-white/10">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold opacity-60">ДОСТУПНЫ ДЛЯ ЗАГРУЗКИ</h3>
+                <div class="flex items-center gap-3 text-xs opacity-50">
                   <span v-if="catalogLastFetch > 0">
                     Обновлено: {{ formatCatalogDate(catalogLastFetch) }}
                   </span>
-                  <button @click="refreshCatalog" class="text-blue-400 hover:underline">↻ Обновить</button>
+                  <button @click="refreshCatalog" title="Обновить каталог" class="text-blue-400 hover:underline">↻</button>
+                </div>
+              </div>
+
+              <div v-if="catalogLoading && catalog.length === 0" class="text-center py-4 opacity-70 text-sm">
+                🔄 Загрузка каталога...
+              </div>
+              <div v-else-if="catalogError && catalog.length === 0" class="text-center py-4 opacity-70 text-sm">
+                ⚠️ Не удалось загрузить каталог: {{ catalogError }}
+                <button @click="refreshCatalog" class="block mx-auto mt-2 text-blue-400 hover:underline text-xs">Повторить</button>
+              </div>
+              <div v-else-if="filteredRemoteCatalog.length === 0" class="text-center py-4 opacity-70 text-sm">
+                <template v-if="catalog.length === 0">Каталог пуст.</template>
+                <template v-else-if="searchHasNoMatchInRemote">Ничего не найдено в каталоге.</template>
+                <template v-else>✓ Все доступные колоды уже загружены.</template>
+              </div>
+              <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  v-for="item in filteredRemoteCatalog"
+                  :key="item.deckId"
+                  class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 transition-all"
+                >
+                  <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ item.name }}</div>
+                  <div class="flex items-center gap-1 mb-2">
+                    <span
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-white/10 text-white/60 border-white/15"
+                      title="Колода из удалённого каталога"
+                    >В каталоге</span>
+                    <span
+                      v-if="item.lang"
+                      class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-white/10 text-white/60 border-white/15"
+                      :title="`Язык колоды: ${item.lang}`"
+                    >{{ item.lang.split('_')[0] }}</span>
+                  </div>
+                  <div class="text-sm opacity-70">{{ item.description }}</div>
+                  <div class="text-xs opacity-50 mt-1 mb-3">{{ item.questionsCount || '?' }} вопросов</div>
+                  <button
+                    @click="handleLoadFromCatalog(item)"
+                    :disabled="catalogLoadingDeck === item.deckId"
+                    class="w-full py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-bold"
+                  >
+                    {{ catalogLoadingDeck === item.deckId ? '⏳ Загрузка...' : 'Загрузить' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -626,9 +637,7 @@ const highlightedSessionId = ref(null)
 // v5.0: inline-переименование сессии
 const renamingSessionId = ref(null)
 const renamingValue = ref('')
-// v5.2: Каталог (remote)
-const showCatalog = ref(false)
-const catalogSearch = ref('')
+// v5.2: Каталог (remote) — авто-загружается при открытии формы новой сессии
 const catalogLoadingDeck = ref('')
 
 // v5.4: фильтр удалённого каталога — скрывает уже загруженные колоды.
@@ -637,27 +646,54 @@ function isDeckAlreadyLoaded(deckIdArg) {
   return deckIdArg in decks.value
 }
 
-const filteredRemoteCatalog = computed(() => {
-  let items = catalog.value
-  // Скрываем уже загруженные
-  items = items.filter(item => !isDeckAlreadyLoaded(item.deckId))
-  // Поиск
-  const q = catalogSearch.value.trim().toLowerCase()
-  if (!q) return items
-  return items.filter(item =>
+// v5.5: searchHasNoMatchInRemote — true если есть активный поиск, в каталоге что-то есть,
+// но после применения поиска и фильтра «не загруженные» ничего не осталось.
+// Используется для友好ного пустого состояния «Ничего не найдено в каталоге»
+// (вместо «Все колоды уже загружены»).
+const searchHasNoMatchInRemote = computed(() => {
+  const q = deckSearch.value.trim().toLowerCase()
+  if (!q) return false
+  if (catalog.value.length === 0) return false
+  // Все ещё не загруженные, но без применения поиска
+  const notLoaded = catalog.value.filter(item => !isDeckAlreadyLoaded(item.deckId))
+  if (notLoaded.length === 0) return false
+  // Применяем поиск
+  const matched = notLoaded.filter(item =>
     (item.name || '').toLowerCase().includes(q) ||
     (item.description || '').toLowerCase().includes(q)
   )
+  return matched.length === 0
 })
 
-async function toggleCatalog() {
-  showCatalog.value = !showCatalog.value
-  if (showCatalog.value && catalog.value.length === 0 && !catalogLoading.value) {
-    try {
-      await loadCatalog()
-    } catch (e) {
-      // error уже в catalogError
-    }
+// v5.5: filteredRemoteCatalog — единый поиск работает и на локальные, и на удалённые.
+// Скрываем уже загруженные + применяем тот же deckSearch, что и в верхней секции.
+// Сортировка по имени (ru-locale) — как и в верхней секции.
+const filteredRemoteCatalog = computed(() => {
+  // Скрываем уже загруженные
+  let items = catalog.value.filter(item => !isDeckAlreadyLoaded(item.deckId))
+  // Поиск (тот же deckSearch, что и вверху)
+  const q = deckSearch.value.trim().toLowerCase()
+  if (q) {
+    items = items.filter(item =>
+      (item.name || '').toLowerCase().includes(q) ||
+      (item.description || '').toLowerCase().includes(q)
+    )
+  }
+  // Сортировка по имени
+  items = [...items].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
+  return items
+})
+
+// v5.5: авто-загрузка каталога при открытии формы новой сессии.
+// Если каталог пустой и не в состоянии загрузки — запускаем.
+// Идёмпотентно: если уже что-то есть или уже грузится — ничего не делаем.
+async function ensureCatalogLoaded() {
+  if (catalog.value.length > 0) return
+  if (catalogLoading.value) return
+  try {
+    await loadCatalog()
+  } catch (e) {
+    // error уже в catalogError; UI показывает «Не удалось загрузить каталог»
   }
 }
 
@@ -678,7 +714,9 @@ async function handleLoadFromCatalog(item) {
   try {
     const result = await loadDeckFromUrl(item.url)
     if (result.ok) {
-      alert(`Колода "${result.deck.name}" загружена (${result.deck.questions.length} вопросов)`)
+      // v5.5: тихий успех — не alert, а автo-select загруженной колоды,
+      // чтобы пользователь сразу видел её вверху и мог выбирать порядок.
+      selectDeck(result.deck.deckId)
     } else {
       alert('Ошибка: ' + result.error)
     }
@@ -696,6 +734,9 @@ async function handleCheckUpdates(deckIdArg) {
       alert(`Обновлено до версии ${result.remoteVersion}`)
     } else if (result.upToDate) {
       alert('Обновлений нет')
+    } else if (result.notFound) {
+      // v5.5: колода удалена из репо
+      alert(result.error)
     } else if (result.structural) {
       alert(`Доступна версия ${result.remoteVersion}, но структура изменилась.\nЭто новая колода — загрузите отдельно из каталога.`)
     } else {
@@ -824,6 +865,8 @@ onMounted(() => {
     selectedRole.value = parsed.role
     showNewForm.value = true
   }
+  // v5.5: авто-загрузка каталога — каталог виден сразу при открытии формы.
+  ensureCatalogLoaded()
 })
 
 function selectDeck(dId) {
@@ -844,6 +887,9 @@ function enterNewForm() {
   selectedOrderIndex.value = null
   selectedRole.value = null
   shareParams.value = null
+  // v5.5: подгружаем каталог, если ещё не загружен (для случая, когда форма
+  // открывается кнопкой «Новая сессия», а не при первом заходе).
+  ensureCatalogLoaded()
 }
 
 function exitNewForm() {

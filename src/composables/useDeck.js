@@ -40,8 +40,10 @@ function loadCustomDecks() {
 function saveCustomDecks(arr) {
   try {
     localStorage.setItem(customDecksKey, JSON.stringify(arr))
+    return true
   } catch (e) {
     console.error('[coffee-cards] localStorage write failed:', e)
+    return false
   }
 }
 
@@ -55,11 +57,23 @@ function isValidDeckId(id) {
 function validateDeckFormat(deck) {
   if (!deck || typeof deck !== 'object') return 'Некорректный формат колоды'
   if (!isValidDeckId(deck.deckId)) return `Некорректный deckId: "${deck.deckId}" (нужны a-z, 0-9, дефис, 3-64 символа)`
-  if (!deck.name || typeof deck.name !== 'string' || deck.name.length > 128) return 'Имя колоды обязательно, до 128 символов'
+  // v5.5: имя не должно быть пустым или только из пробелов
+  if (!deck.name || typeof deck.name !== 'string' || deck.name.trim().length === 0) {
+    return 'Имя колоды обязательно (не пустое)'
+  }
+  if (deck.name.length > 128) return 'Имя колоды должно быть до 128 символов'
   if (!Array.isArray(deck.questions) || deck.questions.length === 0) return 'Колода должна содержать хотя бы один вопрос'
   for (const q of deck.questions) {
     if (!q.id || typeof q.id !== 'string') return 'Каждый вопрос должен иметь id'
     if (!q.text || typeof q.text !== 'string') return 'Каждый вопрос должен иметь text'
+  }
+  // v5.5: вопросы должны иметь уникальные id — иначе generateOrder создаёт
+  // последовательность с дубликатами, currentQuestion находит первый попавший.
+  const ids = deck.questions.map(q => q.id)
+  const uniqueIds = new Set(ids)
+  if (uniqueIds.size !== ids.length) {
+    const dup = ids.find((id, i) => ids.indexOf(id) !== i)
+    return `Дубликат id вопроса: "${dup}". Каждый id должен быть уникален.`
   }
   // v5.3: lang — опц., default ru_RU, формат ^[a-z]{2}_[A-Z]{2}$
   if (deck.lang !== undefined) {
@@ -114,7 +128,7 @@ function normalizeDeck(deck) {
   }
   return {
     deckId: deck.deckId,
-    name: deck.name.slice(0, 128),
+    name: (deck.name || '').trim().slice(0, 128),   // v5.5: trim + 128
     description: deck.description || '',
     source: deck.source || null,
     sourcePath: deck.sourcePath || null,           // v5.4: embedded | <file.name> | <URL path>
@@ -704,7 +718,11 @@ function importDeck(deckData, opts = {}) {
   }
 
   customDecks.value = [normalized, ...customDecks.value]
-  saveCustomDecks(customDecks.value)
+  // v5.5: откат, если localStorage переполнен
+  if (!saveCustomDecks(customDecks.value)) {
+    customDecks.value = customDecks.value.filter(d => d.deckId !== normalized.deckId)
+    return { ok: false, error: 'Не удалось сохранить: возможно, переполнен localStorage' }
+  }
   return { ok: true, deck: normalized }
 }
 
@@ -738,29 +756,57 @@ function exportDeck(deckIdArg) {
 
 // deleteDeck: удаляет кастомную колоду.
 // Предупреждаем: сессии с этой колодой могут остаться в истории, но станут непоказываемыми.
+// v5.5: если удаляется колода активной сессии — предупреждаем и завершаем активную сессию.
+// v5.5: откат, если localStorage переполнен (маловероятно при удалении, но для consistency).
 function deleteDeck(deckIdArg) {
   const d = customDecks.value.find(x => x.deckId === deckIdArg)
   if (!d) return false
   // Считаем сколько сессий используют эту колоду
   const sessionCount = sessions.value.filter(s => s.deckId === deckIdArg).length
-  const msg = sessionCount > 0
-    ? `Удалить колоду "${d.name}"? У вас есть ${sessionCount} сессий с этой колодой — они останутся в истории, но не смогут открыться.`
-    : `Удалить колоду "${d.name}"?`
+  // v5.5: проверяем, активна ли сессия с этой колодой
+  const isActive = activeSession.value?.deckId === deckIdArg
+
+  let msg = `Удалить колоду "${d.name}"?`
+  if (isActive && sessionCount > 0) {
+    msg = `Удалить колоду "${d.name}"?\n\n` +
+          `Эта колода используется в активной сессии — она будет завершена.\n` +
+          `У вас есть ${sessionCount} сессий с этой колодой — они останутся в истории, но не смогут открыться.`
+  } else if (isActive) {
+    msg = `Удалить колоду "${d.name}"?\n\n` +
+          `Эта колода используется в активной сессии — она будет завершена.`
+  } else if (sessionCount > 0) {
+    msg = `Удалить колоду "${d.name}"? У вас есть ${sessionCount} сессий с этой колодой — они останутся в истории, но не смогут открыться.`
+  }
   if (!confirm(msg)) return false
 
+  // v5.5: если активная сессия использует эту колоду — завершаем её
+  if (isActive) {
+    resetProgress()
+  }
+
+  const before = customDecks.value
   customDecks.value = customDecks.value.filter(x => x.deckId !== deckIdArg)
-  saveCustomDecks(customDecks.value)
+  if (!saveCustomDecks(customDecks.value)) {
+    // Откат — восстановим прежний массив
+    customDecks.value = before
+    return false
+  }
   return true
 }
 
 // renameDeck: переименование кастомной колоды (≤128 символов).
+// v5.5: откат при ошибке сохранения.
 function renameDeck(deckIdArg, newName) {
   const trimmed = (typeof newName === 'string') ? newName.trim().slice(0, 128) : ''
   if (!trimmed) return false
   const idx = customDecks.value.findIndex(d => d.deckId === deckIdArg)
   if (idx === -1) return false
+  const before = customDecks.value[idx]
   customDecks.value[idx] = { ...customDecks.value[idx], name: trimmed, updatedAt: new Date().toISOString() }
-  saveCustomDecks(customDecks.value)
+  if (!saveCustomDecks(customDecks.value)) {
+    customDecks.value[idx] = before
+    return false
+  }
   return true
 }
 
@@ -859,7 +905,18 @@ function importBackup(file) {
             customDecks.value = [normalized, ...customDecks.value]
             decksAdded++
           }
-          saveCustomDecks(customDecks.value)
+          // v5.5: откат, если сохранение не удалось
+          if (!saveCustomDecks(customDecks.value)) {
+            // Считаем сколько успели добавить — возвращаем как есть, но с предупреждением
+            // (восстановить точное предыдущее состояние уже сложно — было несколько добавлений)
+            resolve({
+              sessionsAdded,
+              decksAdded: 0,
+              decksSkipped: decksSkipped + decksAdded,
+              warning: 'Не удалось сохранить все колоды: возможно, переполнен localStorage'
+            })
+            return
+          }
         }
 
         resolve({ sessionsAdded, decksAdded, decksSkipped })
@@ -918,13 +975,21 @@ async function loadCatalog(force = false) {
     const data = await resp.json()
     if (!Array.isArray(data)) throw new Error('Некорректный формат каталога')
 
-    catalog.value = data
+    // v5.5: применяем дефолт lang='ru_RU' к элементам каталога, чтобы
+    // бейдж [RU] был consistent с тем, что увидит пользователь после загрузки
+    // (normalizeDeck делает то же самое для кастомных колод).
+    const items = data.map(item => ({
+      ...item,
+      lang: item.lang || 'ru_RU'
+    }))
+
+    catalog.value = items
     catalogLastFetch.value = Date.now()
     // Сохраняем в localStorage
     try {
       localStorage.setItem(catalogCacheKey, JSON.stringify({
         timestamp: catalogLastFetch.value,
-        items: data
+        items: items
       }))
     } catch (e) {
       console.warn('[coffee-cards] Catalog cache write failed:', e)
@@ -981,7 +1046,17 @@ async function checkDeckUpdates(deckIdArg) {
 
   try {
     const resp = await fetch(d.source, { cache: 'no-cache' })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    if (!resp.ok) {
+      // v5.5: дружелюбное сообщение для 404 (колоду удалили из репо)
+      if (resp.status === 404) {
+        return {
+          ok: false,
+          error: 'Колода больше недоступна в каталоге, обновить нельзя. У вас остаётся локальная версия.',
+          notFound: true
+        }
+      }
+      throw new Error(`HTTP ${resp.status}`)
+    }
     const remote = await resp.json()
 
     // Проверяем, что это та же колода по deckId
@@ -1032,13 +1107,18 @@ async function checkDeckUpdates(deckIdArg) {
     })
 
     const idx = customDecks.value.findIndex(x => x.deckId === deckIdArg)
+    const before = customDecks.value[idx]
     customDecks.value[idx] = {
       ...customDecks.value[idx],
       questions: updatedQuestions,
       version: remoteVersion,
       updatedAt: new Date().toISOString()
     }
-    saveCustomDecks(customDecks.value)
+    // v5.5: откат, если сохранение не удалось
+    if (!saveCustomDecks(customDecks.value)) {
+      customDecks.value[idx] = before
+      return { ok: false, error: 'Не удалось сохранить обновление: возможно, переполнен localStorage' }
+    }
     return { ok: true, remoteVersion, patched: true }
   } catch (e) {
     return { ok: false, error: e.message }

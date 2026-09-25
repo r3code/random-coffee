@@ -895,10 +895,77 @@ export function useDeck() {
     resumeTimer, pauseTimer, getCurrentElapsedMs, formatDuration,
     // actions
     startSession, nextQuestion, nextTurn, prevQuestion, skipQuestion, resetProgress,
-    exportState, importState, setTheme
+    exportState, importState, setTheme,
+    // v5.1: custom decks
+    decks, deckIds, customDecks,
+    importDeck, exportDeck, deleteDeck, renameDeck,
+    exportBackup, importBackup,
+    // v5.4: unified catalog
+    catalogDecks, isCustomDeck,
+    // v5.2: catalog (remote)
+    catalog, catalogLoading, catalogError, catalogLastFetch,
+    loadCatalog, loadDeckFromUrl, checkDeckUpdates
   }
 }
+
+// Также экспортируются:
+export const SOURCE_EMBEDDED = 'embedded'  // v5.4: sourcePath для встроенных колод
+export { SCHEMA_VERSION, sessionsKey, activeSessionIdKey, themeKey }
 ```
+
+#### v5.4: `catalogDecks` — единый список колод для UI-каталога
+
+```javascript
+catalogDecks = computed(() => {
+  // Array<{ ...deck, kind: 'builtin' | 'custom', sourcePath }>
+  // Сортировка: встроенные сверху (по алфавиту имени, ru-locale), затем кастомные (тоже по алфавиту).
+  // sourcePath: 'embedded' для встроенных, deck.sourcePath для кастомных (может быть null).
+})
+```
+
+#### v5.4: `isCustomDeck(deckId)` — helper
+
+Возвращает `true` если колода принадлежит кастомным (загруженным). Используется для отображения разных действий на карточке.
+
+#### v5.4: `sourcePath` — метаданные происхождения колоды
+
+Не показывается в UI, хранится в `customDecks` для диагностики. Возможные значения:
+- `'embedded'` — встроенная колода (константа `SOURCE_EMBEDDED`).
+- `'<file.name>'` — импортирована из файла (только имя, без пути).
+- `'/path/in/repo.json'` — загружена из каталога (path из URL без домена).
+
+`importDeck(deckData, { sourcePath })` — opts.sourcePath имеет приоритет над `deckData.sourcePath` (caller знает контекст).
+`loadDeckFromUrl(url, opts)` — автоматически выводит sourcePath из URL: `url.pathname + (url.hash || '')`.
+`exportDeck` — выгрузка содержит `sourcePath` (для пере-импорта без потери метаданных).
+
+#### v5.5: Откат при ошибке сохранения
+
+`saveCustomDecks()` возвращает `bool`. Если `localStorage.setItem` бросает (например, `QuotaExceededError`):
+- `importDeck` — откатывает `customDecks.value`, возвращает `{ ok: false, error: 'Не удалось сохранить: возможно, переполнен localStorage' }`.
+- `deleteDeck` — восстанавливает прежний массив, возвращает `false`.
+- `renameDeck` — восстанавливает прежнее имя, возвращает `false`.
+- `checkDeckUpdates` — восстанавливает прежнюю версию, возвращает `{ ok: false, error: 'Не удалось сохранить обновление...' }`.
+
+#### v5.5: `deleteDeck` активной сессии
+
+Если удаляется колода, которая используется в активной сессии:
+- `confirm` показывает дополнительное предупреждение: «Эта колода используется в активной сессии — она будет завершена.»
+- После подтверждения — вызывается `resetProgress()`, который завершает активную сессию (`completed: true`) и сбрасывает `activeSessionId`, `deckId`, `orderIndex`, `role`.
+- Удаляем колоду. Сессия остаётся в истории как завершённая.
+
+#### v5.5: Валидация формата колоды (дополнения)
+
+- Имя не должно быть пустым или только из пробелов: `deck.name.trim().length > 0`.
+- Вопросы должны иметь уникальные `id`: `new Set(questions.map(q => q.id)).size === questions.length`.
+- `normalizeDeck` — имя триммится: `(deck.name || '').trim().slice(0, 128)`.
+
+#### v5.5: `loadCatalog` применяет дефолт `lang`
+
+Элементы каталога без `lang` получают `'ru_RU'` автоматически — чтобы бейдж `[RU]` был consistent с тем, что увидит пользователь после загрузки (т.к. `normalizeDeck` делает то же самое для кастомных колод).
+
+#### v5.5: `checkDeckUpdates` при HTTP 404
+
+Если колоду удалили из репо — `fetch(source)` возвращает 404. Возвращаем `{ ok: false, notFound: true, error: 'Колода больше недоступна в каталоге, обновить нельзя. У вас остаётся локальная версия.' }`. UI показывает это сообщение вместо сырного `HTTP 404`.
 
 ---
 
@@ -976,7 +1043,20 @@ URL вида `https://<user>.github.io/<repo>/?deck=deep&order=3&role=listener&t
 **Экран новой сессии** (`showNewForm = true`):
 
 1. "← Назад" (возвращает на главный)
-2. **Шаг 1.** Выбор колоды (всегда enabled)
+2. **Шаг 1.** Выбор колоды — **единый каталог** (v5.4) с двумя секциями:
+   - **Шапка**: поиск (placeholder «Поиск по имени или описанию...», ✕ справа внутри поля для очистки, Esc сбрасывает), чипы-фильтры `Все (N) | Встроенные (N) | Загруженные (N)`, кнопка `📥 Импорт из файла`.
+   - **Секция «ЗАГРУЖЕННЫЕ»** — карточки встроенных и кастомных колод:
+     - Имя колоды на отдельной строке (`text-lg font-bold`, `line-clamp-2` — всегда видно целиком, до 2 строк).
+     - Под именем — бейджи одного размера (`text-[10px] px-2 py-0.5 rounded leading-none border`): `[Встроенная|Загруженная]` (тип) + `[RU]` (язык). Высота бейджей одинаковая за счёт одинакового padding + `leading-none` + border у обоих.
+     - Описание, число вопросов.
+     - Для кастомных: 3 иконки действий (↓ ✕ 🔄) справа, `@click.stop` — клик не выбирает колоду.
+   - **Разделитель** + **Секция «ДОСТУПНЫ ДЛЯ ЗАГРУЗКИ»** (только при фильтре «Все»):
+     - Заголовок + ↻ обновить справа + дата последнего обновления мелким.
+     - **Авто-загрузка** каталога при открытии формы (`ensureCatalogLoaded` в `onMounted` + `enterNewForm`).
+     - Карточки удалённых колод, которых ещё нет локально. Скрываются, если уже загружены.
+     - Бейджи того же размера: `[В каталоге]` + `[RU]`.
+     - Кнопка «Загрузить» — после успеха `selectDeck(result.deck.deckId)` автоматически (без alert), колода переходит в верхнюю секцию.
+     - Пустое состояние разветвляется: «Каталог пуст.» / «Ничего не найдено в каталоге.» / «✓ Все доступные колоды уже загружены.»
 3. **Шаг 2.** Выбор порядка (A..J) — disabled пока нет колоды, с подсказкой "↑ Сначала выберите колоду"
 4. **Шаг 3.** Выбор роли — "Я читаю первым" / "Я слушаю первым" — disabled пока нет порядка
 5. **Блок "Синхронизация с партнёром"**:
