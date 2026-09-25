@@ -380,9 +380,9 @@
                 </label>
               </div>
 
-              <!-- ── Секция «Загруженные» (встроенные + кастомные) ── -->
+              <!-- ── Секция «Мои колоды» (встроенные + кастомные) ── -->
               <div>
-                <h3 class="text-sm font-bold opacity-60 mb-3">ЗАГРУЖЕННЫЕ</h3>
+                <h3 class="text-sm font-bold opacity-60 mb-3">МОИ КОЛОДЫ</h3>
                 <div v-if="filteredCatalogDecks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   v-for="d in filteredCatalogDecks"
@@ -446,12 +446,12 @@
               </div>
             </div>
 
-            <!-- ── Разделитель + секция «Доступны для загрузки» ── -->
-            <!-- Скрывается при фильтре 'builtin'/'custom' — пользователь явно хочет только локальное -->
+            <!-- ── Разделитель + секция «Каталог» (удалённые, ещё не загруженные) ── -->
+            <!-- Скрывается при фильтре 'mine' — пользователь явно хочет только локальные -->
             <!-- v5.8: скрывается и после выбора колоды (вместе с верхней секцией) -->
             <div v-if="deckFilter === 'all' && (!selectedDeckId || isDeckCatalogExpanded)" class="mt-6 pt-4 border-t border-white/10">
               <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
-                <h3 class="text-sm font-bold opacity-60">ДОСТУПНЫ ДЛЯ ЗАГРУЗКИ ({{ filteredRemoteCatalog.length }})</h3>
+                <h3 class="text-sm font-bold opacity-60">КАТАЛОГ ({{ filteredRemoteCatalog.length }})</h3>
                 <div class="flex items-center gap-3 text-xs opacity-50">
                   <span v-if="catalogLastFetch > 0">
                     Обновлено: {{ formatCatalogDate(catalogLastFetch) }}
@@ -767,7 +767,7 @@ const emptyOrders = Array.from({ length: 10 }, (_, i) => ({
 
 // ─── v5.4: Единый каталог колод (поиск + фильтры) ─────────────
 const deckSearch = ref('')
-const deckFilter = ref('all')  // 'all' | 'builtin' | 'custom'
+const deckFilter = ref('all')  // v5.10: 'all' | 'mine' (раньше был 'builtin' | 'custom' — убран)
 // v5.6: progressive disclosure — после выбора колоды каталог коллапсируется
 // в компактную плашку, чтобы освободить место для шага 2.
 // true = каталог развёрнут (виден полный список); false = показана плашка.
@@ -816,23 +816,36 @@ onBeforeUnmount(() => {
 })
 
 const deckFilters = computed(() => {
-  const all = catalogDecks.value
-  const builtinCount = all.filter(d => d.kind === 'builtin').length
-  const customCount = all.filter(d => d.kind === 'custom').length
-  // v5.8: «Все» включает и удалённые колоды (каталог), которые ещё не загружены.
-  // Это даёт пользователю реальное число доступных для выбора колод.
-  const remoteCount = filteredRemoteCatalog.value.length
+  // v5.10: счётчики учитывают активный поиск — применяем фильтр к каждой подгруппе.
+  // Раньше показывали полные числа без поиска — было вводящее в заблуждение
+  // (например, при поиске «глуб» показывало «Все (4)», хотя найдено всего 2).
+  const q = deckSearch.value.trim().toLowerCase()
+  const matchesSearch = (item) => {
+    if (!q) return true
+    return (item.name || '').toLowerCase().includes(q) ||
+           (item.description || '').toLowerCase().includes(q)
+  }
+  const builtinCount = catalogDecks.value.filter(d => d.kind === 'builtin' && matchesSearch(d)).length
+  const customCount = catalogDecks.value.filter(d => d.kind === 'custom' && matchesSearch(d)).length
+  // Каталог: только те, что ещё не загружены (isDeckAlreadyLoaded)
+  const remoteCount = catalog.value
+    .filter(item => !isDeckAlreadyLoaded(item.deckId) && matchesSearch(item))
+    .length
+  // v5.10: фильтр «Встроенные» убран — бесполезен (встроенных всего 2, всегда видны).
+  // «Загруженные» переименован в «Мои колоды» (включает и встроенные, и кастомные).
   return [
     { value: 'all', label: 'Все', count: builtinCount + customCount + remoteCount },
-    { value: 'builtin', label: 'Встроенные', count: builtinCount },
-    { value: 'custom', label: 'Загруженные', count: customCount }
+    { value: 'mine', label: 'Мои колоды', count: builtinCount + customCount }
   ]
 })
 
 const filteredCatalogDecks = computed(() => {
   const q = deckSearch.value.trim().toLowerCase()
+  // v5.10: deckFilter теперь 'all' | 'mine'. 'mine' = показываем все локальные
+  // (builtin + custom). 'all' = то же, но в шаблоне ещё видна секция «Каталог» снизу.
   return catalogDecks.value.filter(d => {
-    if (deckFilter.value !== 'all' && d.kind !== deckFilter.value) return false
+    // Для 'mine' фильтр по kind не нужен — показываем все локальные.
+    // (Если понадобится отдельно builtin/custom — вернуть логику.)
     if (!q) return true
     return (
       (d.name || '').toLowerCase().includes(q) ||
