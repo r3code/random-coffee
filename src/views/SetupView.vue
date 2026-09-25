@@ -27,40 +27,47 @@
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
             <h2 class="text-2xl font-bold mb-3">Продолжить сессию?</h2>
 
-            <!-- v5.8: карточка колоды — единообразие с экраном выбора колоды.
-                 Та же структура: имя + бейджи + описание + «N вопросов • порядок X» -->
-            <div class="relative p-4 rounded-lg bg-yellow-500 text-gray-900 mb-4">
-              <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ savedDeckName }}</div>
-              <div class="flex items-center gap-1 mb-2">
-                <span
-                  class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
-                  :title="isCustomDeck(deckId) ? 'Загруженная колода' : 'Встроенная колода'"
-                >
-                  {{ isCustomDeck(deckId) ? 'Загруженная' : 'Встроенная' }}
-                </span>
-                <span
-                  v-if="deck?.lang"
-                  class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
-                  :title="`Язык колоды: ${deck.lang}`"
-                >{{ deck.lang.split('_')[0] }}</span>
+            <!-- v5.9: вся карточка колоды + кнопка «Продолжить» — один кликабельный блок.
+                 Любой тап в пределах (внутри карточки колоды ИЛИ на кнопке «Продолжить»)
+                 вызывает continueSession. Кнопка визуально подчёркнута как зона действия. -->
+            <button
+              @click="continueSession"
+              class="w-full text-left rounded-xl overflow-hidden mb-4 transition-all hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              :aria-label="`Продолжить сессию: ${savedDeckName}, порядок ${savedOrderName}`"
+            >
+              <!-- Карточка колоды — жёлтый фон, как у выбранной -->
+              <div class="relative p-4 bg-yellow-500 text-gray-900">
+                <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ savedDeckName }}</div>
+                <div class="flex items-center gap-1 mb-2">
+                  <span
+                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
+                    :title="isCustomDeck(deckId) ? 'Загруженная колода' : 'Встроенная колода'"
+                  >
+                    {{ isCustomDeck(deckId) ? 'Загруженная' : 'Встроенная' }}
+                  </span>
+                  <span
+                    v-if="deck?.lang"
+                    class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
+                    :title="`Язык колоды: ${deck.lang}`"
+                  >{{ deck.lang.split('_')[0] }}</span>
+                </div>
+                <div class="text-sm opacity-80">{{ deck?.description }}</div>
+                <div class="text-xs opacity-70 mt-2">{{ savedTotalQuestions }} вопросов • порядок {{ savedOrderName }}</div>
+                <div class="text-xs opacity-60 mt-1">
+                  Вопрос {{ (savedTurn ?? 0) + 1 }} из {{ savedTotalQuestions }}
+                </div>
               </div>
-              <div class="text-sm opacity-80">{{ deck?.description }}</div>
-              <div class="text-xs opacity-70 mt-2">{{ savedTotalQuestions }} вопросов • порядок {{ savedOrderName }}</div>
-            </div>
+              <!-- Зелёная полоса-кнопка Продолжить — продолжение карточки, явный CTA -->
+              <div class="bg-green-500 hover:bg-green-400 text-white text-center font-bold py-3 px-4 flex items-center justify-center gap-2">
+                <span>Продолжить</span>
+                <span aria-hidden="true">→</span>
+              </div>
+            </button>
 
-            <p class="mb-4 text-sm opacity-60">
-              Вопрос {{ (savedTurn ?? 0) + 1 }} из {{ savedTotalQuestions }}
-            </p>
-            <div class="flex gap-4 mb-4">
-              <button @click="continueSession"
-                      class="flex-1 py-3 bg-green-500 hover:bg-green-400 rounded-lg font-bold">
-                Продолжить
-              </button>
-              <button @click="enterNewForm"
-                      class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold">
-                Новая
-              </button>
-            </div>
+            <button @click="enterNewForm"
+                    class="w-full py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold mb-4">
+              Новая сессия
+            </button>
 
             <!-- v5.8: QR-блок стандартизирован с экраном «Новая сессия».
                  Текст инструкции + QR + ссылка простым текстом + иконка ⧉ для копирования -->
@@ -69,7 +76,7 @@
                 <span class="text-base shrink-0 mt-0.5 opacity-70" aria-hidden="true">ℹ️</span>
                 <p class="text-xs opacity-70 leading-snug">
                   Покажите партнёру QR-код — он попадёт в ту же сессию и продолжит с того же вопроса.
-                  Или отправьте ссылку сообщением. Потом нажмите «Продолжить».
+                  Или отправьте ссылку сообщением.
                 </p>
               </div>
 
