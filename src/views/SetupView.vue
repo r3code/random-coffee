@@ -570,7 +570,7 @@
             </div>
 
             <div v-else>
-              <!-- v5.7: Пометка-инструкция — QR или отправка ссылки -->
+              <!-- Пометка-инструкция над QR-кодом: что делать и зачем -->
               <div class="flex items-start gap-2 text-left mb-4 px-2">
                 <span class="text-base shrink-0 mt-0.5 opacity-70" aria-hidden="true">ℹ️</span>
                 <p class="text-xs opacity-70 leading-snug">
@@ -579,30 +579,26 @@
                 </p>
               </div>
 
-              <!-- v5.7: Ссылка над QR-кодом с кнопкой «Копировать» (не везде есть нативный Web Share) -->
-              <div class="mb-4 px-2 text-left">
-                <div class="flex items-stretch gap-2">
-                  <div class="flex-grow min-w-0 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-xs text-white/90 break-all font-mono">
-                    {{ shareUrl }}
-                  </div>
-                  <button
-                    @click="handleCopyLink"
-                    :aria-label="linkCopiedRef ? 'Ссылка скопирована' : 'Копировать ссылку'"
-                    :title="linkCopiedRef ? 'Скопировано!' : 'Копировать ссылку'"
-                    class="shrink-0 px-3 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition-all"
-                    :class="linkCopiedRef ? 'text-emerald-300' : ''"
-                  >
-                    {{ linkCopiedRef ? '✓' : '📋 Копировать' }}
-                  </button>
-                </div>
-              </div>
-
               <div v-if="qrDataUrl" class="inline-block bg-white p-3 rounded-lg">
                 <img :src="qrDataUrl" alt="QR-код со ссылкой на сессию" class="w-48 h-48" />
               </div>
               <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg">
                 <span class="text-sm opacity-70">Генерация...</span>
               </div>
+              <!-- v5.7: ссылка под QR-кодом простым текстом + компактная иконка копирования рядом -->
+              <p class="text-xs opacity-70 mt-3 break-all">
+                {{ shareUrl }}
+                <button
+                  @click="handleCopyLink"
+                  :aria-label="linkCopiedRef ? 'Ссылка скопирована' : 'Копировать ссылку'"
+                  :title="linkCopiedRef ? 'Скопировано!' : 'Копировать ссылку'"
+                  class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-yellow-400 transition-all"
+                  type="button"
+                >
+                  <span v-if="linkCopiedRef" class="text-emerald-400">✓</span>
+                  <span v-else aria-hidden="true">⧉</span>
+                </button>
+              </p>
             </div>
           </div>
 
