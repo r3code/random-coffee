@@ -26,11 +26,28 @@
         <div v-if="hasSavedSession && !shareParams" class="mb-8">
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
             <h2 class="text-2xl font-bold mb-3">Продолжить сессию?</h2>
-            <!-- Крупное название колоды + порядок -->
-            <div class="mb-2">
-              <span class="text-lg font-bold">{{ savedDeckName }}</span>
-              <span class="text-lg opacity-70"> • порядок {{ savedOrderName }}</span>
+
+            <!-- v5.8: карточка колоды — единообразие с экраном выбора колоды.
+                 Та же структура: имя + бейджи + описание + «N вопросов • порядок X» -->
+            <div class="relative p-4 rounded-lg bg-yellow-500 text-gray-900 mb-4">
+              <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ savedDeckName }}</div>
+              <div class="flex items-center gap-1 mb-2">
+                <span
+                  class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
+                  :title="isCustomDeck(deckId) ? 'Загруженная колода' : 'Встроенная колода'"
+                >
+                  {{ isCustomDeck(deckId) ? 'Загруженная' : 'Встроенная' }}
+                </span>
+                <span
+                  v-if="deck?.lang"
+                  class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
+                  :title="`Язык колоды: ${deck.lang}`"
+                >{{ deck.lang.split('_')[0] }}</span>
+              </div>
+              <div class="text-sm opacity-80">{{ deck?.description }}</div>
+              <div class="text-xs opacity-70 mt-2">{{ savedTotalQuestions }} вопросов • порядок {{ savedOrderName }}</div>
             </div>
+
             <p class="mb-4 text-sm opacity-60">
               Вопрос {{ (savedTurn ?? 0) + 1 }} из {{ savedTotalQuestions }}
             </p>
@@ -45,26 +62,37 @@
               </button>
             </div>
 
-            <!-- QR-код для продолжения + кнопка копирования ссылки -->
+            <!-- v5.8: QR-блок стандартизирован с экраном «Новая сессия».
+                 Текст инструкции + QR + ссылка простым текстом + иконка ⧉ для копирования -->
             <div class="text-center">
-              <p class="text-sm opacity-80 mb-2">
-                Покажите партнёру QR-код, чтобы продолжить с того же вопроса:
-              </p>
-              <div v-if="continueQrDataUrl" class="inline-block bg-white p-3 rounded-lg">
-                <img :src="continueQrDataUrl" alt="QR-код для продолжения сессии" class="w-40 h-40" />
+              <div class="flex items-start gap-2 text-left mb-4 px-2">
+                <span class="text-base shrink-0 mt-0.5 opacity-70" aria-hidden="true">ℹ️</span>
+                <p class="text-xs opacity-70 leading-snug">
+                  Покажите партнёру QR-код — он попадёт в ту же сессию и продолжит с того же вопроса.
+                  Или отправьте ссылку сообщением. Потом нажмите «Продолжить».
+                </p>
               </div>
-              <div class="flex items-center justify-center gap-2 mt-2">
-                <p class="text-xs opacity-70 break-all flex-1 text-left max-w-xs">{{ continueShareUrl }}</p>
+
+              <div v-if="continueQrDataUrl" class="inline-block bg-white p-3 rounded-lg">
+                <img :src="continueQrDataUrl" alt="QR-код для продолжения сессии" class="w-48 h-48" />
+              </div>
+              <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg">
+                <span class="text-sm opacity-70">Генерация...</span>
+              </div>
+              <p class="text-xs opacity-70 mt-3 break-all">
+                {{ continueShareUrl }}
                 <button
                   v-if="continueShareUrl"
-                  @click="copyToClipboard(continueShareUrl)"
-                  class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-sm shrink-0"
-                  title="Копировать ссылку"
-                  aria-label="Копировать ссылку"
+                  @click="handleCopyContinueLink"
+                  :aria-label="continueLinkCopied ? 'Ссылка скопирована' : 'Копировать ссылку'"
+                  :title="continueLinkCopied ? 'Скопировано!' : 'Копировать ссылку'"
+                  class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-yellow-400 transition-all"
+                  type="button"
                 >
-                  📋
+                  <span v-if="continueLinkCopied" class="text-emerald-400">✓</span>
+                  <span v-else aria-hidden="true">⧉</span>
                 </button>
-              </div>
+              </p>
             </div>
           </div>
         </div>
@@ -245,35 +273,63 @@
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
 
-            <!-- v5.6: компактная плашка с выбранной колодой — показывается после выбора,
-                 пока пользователь не нажмёт «Сменить».Освобождает место для шагов 2/3. -->
-            <div
-              v-if="selectedDeckId && !isDeckCatalogExpanded"
-              class="bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
-            >
-              <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ selectedDeck?.name }}</div>
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-1 flex-wrap">
+            <!-- v5.8: компактная плашка заменена на полную карточку колоды + широкая кнопка «Сменить» -->
+            <div v-if="selectedDeckId && !isDeckCatalogExpanded">
+              <div
+                class="relative p-4 rounded-lg bg-yellow-500 text-gray-900 mb-4"
+              >
+                <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
+                <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ selectedDeck?.name }}</div>
+                <!-- Бейджи одного размера: тип + lang -->
+                <div class="flex items-center gap-1 mb-2">
                   <span
                     class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                     :class="isCustomDeck(selectedDeckId)
-                      ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
-                      : 'bg-white/15 text-white/80 border-white/20'"
+                      ? 'bg-emerald-700/30 text-emerald-900 border-emerald-700/30'
+                      : 'bg-gray-900/10 text-gray-700 border-gray-900/20'"
+                    :title="isCustomDeck(selectedDeckId) ? 'Загруженная колода' : 'Встроенная колода'"
                   >
                     {{ isCustomDeck(selectedDeckId) ? 'Загруженная' : 'Встроенная' }}
                   </span>
                   <span
                     v-if="selectedDeck?.lang"
-                    class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-white/15 text-white/80 border-white/20"
+                    class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
+                    :title="`Язык колоды: ${selectedDeck.lang}`"
                   >{{ selectedDeck.lang.split('_')[0] }}</span>
-                  <span class="text-xs opacity-70 ml-1">{{ selectedDeck?.questions.length }} вопросов</span>
                 </div>
-                <button
-                  @click="expandCatalog"
-                  class="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold"
-                  title="Выбрать другую колоду"
-                >✎ Сменить</button>
+                <div class="text-sm opacity-80">{{ selectedDeck?.description }}</div>
+                <div class="flex items-center justify-between gap-2 mt-2">
+                  <div class="text-xs opacity-70">{{ selectedDeck?.questions.length }} вопросов</div>
+                  <!-- Действия для кастомных колод -->
+                  <div v-if="isCustomDeck(selectedDeckId)" class="flex gap-1">
+                    <button
+                      @click="handleExportDeck(selectedDeckId)"
+                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-sm"
+                      title="Экспортировать колоду"
+                      aria-label="Экспортировать колоду"
+                    >↓</button>
+                    <button
+                      @click="handleDeleteDeck(selectedDeckId)"
+                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white rounded-lg text-sm"
+                      title="Удалить колоду"
+                      aria-label="Удалить колоду"
+                    >✕</button>
+                    <button
+                      v-if="selectedDeck?.source"
+                      @click="handleCheckUpdates(selectedDeckId)"
+                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-blue-500 rounded-lg text-sm"
+                      title="Проверить обновления"
+                      aria-label="Проверить обновления"
+                    >🔄</button>
+                  </div>
+                </div>
               </div>
+              <!-- Широкая кнопка «Сменить» под карточкой — как кнопка «Загрузить» у других -->
+              <button
+                @click="expandCatalog"
+                class="w-full py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-lg text-sm font-bold transition-all"
+                title="Выбрать другую колоду"
+              >✎ Сменить колоду</button>
             </div>
 
             <!-- ── Единый каталог (встроенные + загруженные + доступные для загрузки) ── -->
@@ -385,14 +441,23 @@
 
             <!-- ── Разделитель + секция «Доступны для загрузки» ── -->
             <!-- Скрывается при фильтре 'builtin'/'custom' — пользователь явно хочет только локальное -->
-            <div v-if="deckFilter === 'all'" class="mt-6 pt-4 border-t border-white/10">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold opacity-60">ДОСТУПНЫ ДЛЯ ЗАГРУЗКИ</h3>
+            <!-- v5.8: скрывается и после выбора колоды (вместе с верхней секцией) -->
+            <div v-if="deckFilter === 'all' && (!selectedDeckId || isDeckCatalogExpanded)" class="mt-6 pt-4 border-t border-white/10">
+              <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                <h3 class="text-sm font-bold opacity-60">ДОСТУПНЫ ДЛЯ ЗАГРУЗКИ ({{ filteredRemoteCatalog.length }})</h3>
                 <div class="flex items-center gap-3 text-xs opacity-50">
                   <span v-if="catalogLastFetch > 0">
                     Обновлено: {{ formatCatalogDate(catalogLastFetch) }}
                   </span>
-                  <button @click="refreshCatalog" title="Обновить каталог" class="text-blue-400 hover:underline">↻</button>
+                  <button
+                    @click="refreshCatalog"
+                    :disabled="catalogLoading"
+                    :title="catalogLoading ? 'Обновление...' : 'Обновить каталог'"
+                    :aria-label="catalogLoading ? 'Обновление...' : 'Обновить каталог'"
+                    class="px-3 py-1.5 bg-white/15 hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-bold transition-all border border-white/20"
+                  >
+                    {{ catalogLoading ? '⏳' : '↻ Обновить' }}
+                  </button>
                 </div>
               </div>
 
@@ -638,7 +703,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { useDeck, buildShareUrl, parseShareUrl } from '@/composables/useDeck'
@@ -713,13 +778,45 @@ const startButtonRef = ref(null)
 // v5.7: визуальный feedback после копирования ссылки (✓ на 2 сек).
 const linkCopiedRef = ref(false)
 let linkCopiedTimer = null
+// v5.8: такой же feedback для ссылки продолжения сессии (отдельный timer).
+const continueLinkCopied = ref(false)
+let continueLinkCopiedTimer = null
+
+// v5.8: управление browser back при открытой форме новой сессии.
+// Проблема: пользователь открывает форму (showNewForm = true, без router push),
+// делает swipe-left на мобиле → browser back возвращает на предыдущую запись
+// истории (часто /game или закрывает вкладку), а не закрывает форму.
+//
+// Решение: при enterNewForm добавляем в history отдельную запись с метаданными.
+// popstate listener закрывает форму, если эта запись «откатывается».
+// exitNewForm вызывает history.back() чтобы триггерить popstate.
+const HISTORY_FORM_KEY = 'coffee_form_open'
+
+function handlePopState() {
+  // Если форма открыта — закрываем. Это сработает когда browser back откатывает
+  // нашу pushState-запись (сделанную в enterNewForm).
+  if (showNewForm.value) {
+    showNewForm.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('popstate', handlePopState)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('popstate', handlePopState)
+})
 
 const deckFilters = computed(() => {
   const all = catalogDecks.value
   const builtinCount = all.filter(d => d.kind === 'builtin').length
   const customCount = all.filter(d => d.kind === 'custom').length
+  // v5.8: «Все» включает и удалённые колоды (каталог), которые ещё не загружены.
+  // Это даёт пользователю реальное число доступных для выбора колод.
+  const remoteCount = filteredRemoteCatalog.value.length
   return [
-    { value: 'all', label: 'Все', count: all.length },
+    { value: 'all', label: 'Все', count: builtinCount + customCount + remoteCount },
     { value: 'builtin', label: 'Встроенные', count: builtinCount },
     { value: 'custom', label: 'Загруженные', count: customCount }
   ]
@@ -1051,6 +1148,18 @@ function handleCopyLink() {
   }, 2000)
 }
 
+// v5.8: копирование ссылки продолжения сессии (на главном экране).
+function handleCopyContinueLink() {
+  if (!continueShareUrl.value) return
+  copyToClipboard(continueShareUrl.value)
+  continueLinkCopied.value = true
+  if (continueLinkCopiedTimer) clearTimeout(continueLinkCopiedTimer)
+  continueLinkCopiedTimer = setTimeout(() => {
+    continueLinkCopied.value = false
+    continueLinkCopiedTimer = null
+  }, 2000)
+}
+
 function enterNewForm() {
   // Просто переключаем режим, не трогая активную сессию.
   // Старая активная сессия остаётся в истории как in-progress.
@@ -1065,13 +1174,31 @@ function enterNewForm() {
   // v5.7: шаги 2 и 3 тоже разворачиваем.
   isOrderExpanded.value = true
   isRoleExpanded.value = true
+  // v5.8: добавляем запись в history, чтобы browser back (и swipe-left на мобиле)
+  // закрывал форму, а не уходил на /game. popstate listener закроет форму.
+  try {
+    history.pushState({ [HISTORY_FORM_KEY]: true }, '')
+  } catch (e) {
+    // На случай если history API недоступен (очень старые браузеры) — просто не пушим.
+  }
   // v5.5: подгружаем каталог, если ещё не загружен (для случая, когда форма
   // открывается кнопкой «Новая сессия», а не при первом заходе).
   ensureCatalogLoaded()
 }
 
 function exitNewForm() {
-  showNewForm.value = false
+  if (showNewForm.value) {
+    // v5.8: если в history есть наша pushState-запись — откатываем её history.back().
+    // popstate listener закроет форму. Если pushState не делали (share URL),
+    // просто закрываем форму напрямую.
+    if (history.state && history.state[HISTORY_FORM_KEY]) {
+      history.back()
+    } else {
+      showNewForm.value = false
+    }
+  } else {
+    showNewForm.value = false
+  }
 }
 
 function startGame() {
