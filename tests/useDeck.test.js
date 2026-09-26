@@ -115,22 +115,16 @@ describe('data/decks.js', () => {
       expect(decks.work.questions).toHaveLength(10)
     })
 
-    // v5.11: новые встроенные колоды — 12 вопросов каждая
-    it('v5.11: couples, first-date, friends, family — 12 вопросов каждая', () => {
-      expect(decks.couples.questions).toHaveLength(12)
-      expect(decks['first-date'].questions).toHaveLength(12)
-      expect(decks.friends.questions).toHaveLength(12)
-      expect(decks.family.questions).toHaveLength(12)
+    // v5.12: 4 новые колоды перенесены в репозиторий random-coffee-decks
+    // (couples, first-date, friends, family) — проверяем, что они НЕ встроенные.
+    it('v5.12: только deep и work встроенные — couples/family/friends/first-date не в decks', () => {
+      expect(Object.keys(decks).sort()).toEqual(['deep', 'work'])
     })
 
     // v5.11: deckCategory у встроенных колод
     it('v5.11: deckCategory корректно размечен у встроенных колод', () => {
       expect(decks.deep.deckCategory).toBe('self')
       expect(decks.work.deckCategory).toBe('work')
-      expect(decks.couples.deckCategory).toBe('couples')
-      expect(decks['first-date'].deckCategory).toBe('first-date')
-      expect(decks.friends.deckCategory).toBe('friendship')
-      expect(decks.family.deckCategory).toBe('family')
     })
 
     // v5.11: deckCategories экспортируется и содержит 7 категорий
@@ -1168,15 +1162,10 @@ describe('useDeck — v5.4 unified catalog', () => {
   it('catalogDecks: builtin отсортированы по имени (ru-locale)', () => {
     const d = useDeck()
     const builtins = d.catalogDecks.value.filter(x => x.kind === 'builtin')
-    // v5.11: 6 встроенных колод. Порядок по алфавиту (ru-locale):
-    //   Глубокие мысли, Для друзей, Для пар, Первое свидание, Про работу и цели, Семейные разговоры
+    // v5.12: только 2 встроенные колоды (deep, work). Остальные — в репозитории каталога.
     const expectedNames = [
       'Глубокие мысли',
-      'Для друзей',
-      'Для пар',
-      'Первое свидание',
-      'Про работу и цели',
-      'Семейные разговоры'
+      'Про работу и цели'
     ]
     expect(builtins.map(x => x.name)).toEqual(expectedNames)
   })

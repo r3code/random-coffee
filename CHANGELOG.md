@@ -17,6 +17,22 @@
 - Карточка истории: кнопка «Открыть» показывается всегда (включая активную сессию). Бейдж «● Активна» убран.
 - Карточка игры: кнопка ⊗ вместо 🏠. Полоска категории `absolute top-0` (в самом верху, не сдвигает текст). Текст вопроса центрирован (`pt-6 pb-10`).
 
+## [5.12.0] — 2026-09-26
+
+### Изменено
+- **Встроенными остаются только 2 колоды** (`deep`, `work`). Колоды `couples`, `first-date`, `friends`, `family` (добавленные в v5.11) **перенесены в репозиторий `random-coffee-decks`** — теперь они подгружаются через каталог (секция «Каталог» в UI выбора колоды). Это позволяет добавлять новые колоды без перекомпиляции приложения.
+- **`deckCategories` (7 категорий) остаются в `src/data/decks.js`** — список нужен для валидации `deckCategory` при импорте колод из каталога.
+- **4 новых JSON-файла в репо `random-coffee-decks/decks/`**:
+  - `couples-ru_RU.json` (12 вопросов, категория `couples`)
+  - `first-date-ru_RU.json` (12 вопросов, категория `first-date`)
+  - `friends-ru_RU.json` (12 вопросов, категория `friendship`)
+  - `family-ru_RU.json` (12 вопросов, категория `family`)
+- **Линтер `random-coffee-decks/.github/workflows/build-index.yml`** обновлён:
+  - Валидация `deckCategory` (опц., slug из белого списка: `couples, first-date, friendship, family, work, self, party`).
+  - `index.json` теперь содержит `deckCategory` для каждой колоды.
+- **SetupView.vue** — карточки удалённых колод в секции «Каталог» теперь показывают бейдж категории (если `item.deckCategory` есть в `index.json`).
+- Тесты: убраны тесты на 4 встроенные колоды в `data/decks.js` (теперь только `deep` + `work`). 136 тестов проходят.
+
 ## [5.11.0] — 2026-09-26
 
 ### Добавлено
@@ -399,7 +415,8 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.11.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.12.0...HEAD
+[5.12.0]: https://github.com/r3code/random-coffee/releases/tag/v5.12.0
 [5.11.0]: https://github.com/r3code/random-coffee/releases/tag/v5.11.0
 [5.10.0]: https://github.com/r3code/random-coffee/releases/tag/v5.10.0
 [5.9.0]: https://github.com/r3code/random-coffee/releases/tag/v5.9.0

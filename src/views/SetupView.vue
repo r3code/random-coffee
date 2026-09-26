@@ -538,7 +538,14 @@
                   class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 transition-all"
                 >
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ item.name }}</div>
-                  <div class="flex items-center gap-1 mb-2">
+                  <!-- v5.11: бейджи — Категория первая, затем «В каталоге», затем lang -->
+                  <div class="flex items-center gap-1 mb-2 flex-wrap">
+                    <span
+                      v-if="item.deckCategory"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                      :style="`background-color: ${deckCategoryColor(item.deckCategory)}20; border-color: ${deckCategoryColor(item.deckCategory)}60; color: ${deckCategoryColor(item.deckCategory)};`"
+                      :title="`Категория колоды: ${deckCategoryName(item.deckCategory)}`"
+                    >{{ deckCategoryName(item.deckCategory) }}</span>
                     <span
                       class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-white/10 text-white/60 border-white/15"
                       title="Колода из удалённого каталога"
