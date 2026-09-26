@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue'
-import { decks as builtinDecks, deckIds as builtinDeckIds, makeRandom, generateOrder } from '@/data/decks'
+import { decks as builtinDecks, deckIds as builtinDeckIds, deckCategories, deckCategorySlugs, makeRandom, generateOrder } from '@/data/decks'
 
 const SCHEMA_VERSION = 3  // v3: кастомные колоды
 const sessionsKey = 'coffee_sessions'
@@ -100,6 +100,17 @@ function validateDeckFormat(deck) {
       }
     }
   }
+  // v5.11: deckCategory — опц., строка-слаг из белого списка.
+  // Если присутствует — должна быть в `deckCategorySlugs` (7 категорий: couples,
+  // first-date, friendship, family, work, self, party). Пустая строка/пробелы — ошибка.
+  if (deck.deckCategory !== undefined && deck.deckCategory !== null) {
+    if (typeof deck.deckCategory !== 'string' || deck.deckCategory.trim().length === 0) {
+      return 'deckCategory должен быть непустой строкой (slug)'
+    }
+    if (!deckCategorySlugs.includes(deck.deckCategory)) {
+      return `deckCategory "${deck.deckCategory}" не из белого списка. Допустимы: ${deckCategorySlugs.join(', ')}`
+    }
+  }
   if (deck.orders) {
     if (!Array.isArray(deck.orders) || deck.orders.length === 0) return 'orders должны быть массивом (или отсутствовать для авто-генерации)'
     for (const o of deck.orders) {
@@ -135,6 +146,7 @@ function normalizeDeck(deck) {
     version: deck.version || 1,
     lang: deck.lang || 'ru_RU',                    // v5.3
     baseDeckId: deck.baseDeckId || null,            // v5.3
+    deckCategory: deck.deckCategory || null,        // v5.11: slug из deckCategorySlugs
     questions,
     orders,
     categories: deck.categories || null,
@@ -740,6 +752,9 @@ function exportDeck(deckIdArg) {
     description: d.description || '',
     source: d.source || null,
     sourcePath: d.sourcePath ?? null,                // v5.4
+    deckCategory: d.deckCategory ?? null,            // v5.11
+    lang: d.lang || 'ru_RU',
+    baseDeckId: d.baseDeckId || null,
     questions: d.questions,
     orders: d.orders,
     categories: d.categories || null,
@@ -1322,6 +1337,8 @@ export function useDeck() {
     exportBackup, importBackup,
     // v5.4: unified catalog
     catalogDecks, isCustomDeck,
+    // v5.11: deck categories
+    deckCategories, deckCategorySlugs,
     // v5.2: catalog
     catalog, catalogLoading, catalogError, catalogLastFetch,
     loadCatalog, loadDeckFromUrl, checkDeckUpdates,

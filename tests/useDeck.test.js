@@ -114,6 +114,44 @@ describe('data/decks.js', () => {
       expect(decks.deep.questions).toHaveLength(15)
       expect(decks.work.questions).toHaveLength(10)
     })
+
+    // v5.11: новые встроенные колоды — 12 вопросов каждая
+    it('v5.11: couples, first-date, friends, family — 12 вопросов каждая', () => {
+      expect(decks.couples.questions).toHaveLength(12)
+      expect(decks['first-date'].questions).toHaveLength(12)
+      expect(decks.friends.questions).toHaveLength(12)
+      expect(decks.family.questions).toHaveLength(12)
+    })
+
+    // v5.11: deckCategory у встроенных колод
+    it('v5.11: deckCategory корректно размечен у встроенных колод', () => {
+      expect(decks.deep.deckCategory).toBe('self')
+      expect(decks.work.deckCategory).toBe('work')
+      expect(decks.couples.deckCategory).toBe('couples')
+      expect(decks['first-date'].deckCategory).toBe('first-date')
+      expect(decks.friends.deckCategory).toBe('friendship')
+      expect(decks.family.deckCategory).toBe('family')
+    })
+
+    // v5.11: deckCategories экспортируется и содержит 7 категорий
+    it('v5.11: deckCategories содержит 7 slug с name и color', async () => {
+      const mod = await import('@/data/decks')
+      const cats = mod.deckCategories
+      expect(Object.keys(cats)).toHaveLength(7)
+      for (const [slug, c] of Object.entries(cats)) {
+        expect(typeof slug).toBe('string')
+        expect(c.name).toBeTruthy()
+        expect(c.color).toMatch(/^#[0-9a-f]{6}$/i)
+      }
+      // Проверяем ключевые slug
+      expect(cats.couples).toBeDefined()
+      expect(cats['first-date']).toBeDefined()
+      expect(cats.friendship).toBeDefined()
+      expect(cats.family).toBeDefined()
+      expect(cats.work).toBeDefined()
+      expect(cats.self).toBeDefined()
+      expect(cats.party).toBeDefined()
+    })
   })
 })
 
@@ -1130,9 +1168,17 @@ describe('useDeck — v5.4 unified catalog', () => {
   it('catalogDecks: builtin отсортированы по имени (ru-locale)', () => {
     const d = useDeck()
     const builtins = d.catalogDecks.value.filter(x => x.kind === 'builtin')
-    // Колоды deep и work — порядок по алфавиту: 'Глубокие мысли' < 'Про работу и цели'
-    expect(builtins[0].name).toBe('Глубокие мысли')
-    expect(builtins[1].name).toBe('Про работу и цели')
+    // v5.11: 6 встроенных колод. Порядок по алфавиту (ru-locale):
+    //   Глубокие мысли, Для друзей, Для пар, Первое свидание, Про работу и цели, Семейные разговоры
+    const expectedNames = [
+      'Глубокие мысли',
+      'Для друзей',
+      'Для пар',
+      'Первое свидание',
+      'Про работу и цели',
+      'Семейные разговоры'
+    ]
+    expect(builtins.map(x => x.name)).toEqual(expectedNames)
   })
 
   it('isCustomDeck: false для встроенных, true для импортированных', () => {
@@ -1443,5 +1489,55 @@ describe('useDeck — v5.5 edge cases', () => {
     } finally {
       global.fetch.mockRestore?.()
     }
+  })
+
+  // ── v5.11: deckCategory валидация ──
+
+  it('v5.11: validateDeckFormat принимает корректный deckCategory (slug из белого списка)', () => {
+    const d = useDeck()
+    for (const slug of d.deckCategorySlugs) {
+      const res = d.importDeck(makeDeck({ deckId: `test-${slug}`, deckCategory: slug }))
+      expect(res.ok).toBe(true)
+      expect(res.deck.deckCategory).toBe(slug)
+    }
+  })
+
+  it('v5.11: validateDeckFormat отклоняет неизвестный deckCategory', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ deckId: 'bad-cat', deckCategory: 'romance' }))
+    // 'romance' был переименован в 'couples' в v5.11 — должен отклоняться
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/не из белого списка/)
+  })
+
+  it('v5.11: validateDeckFormat отклоняет пустой deckCategory', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ deckId: 'empty-cat', deckCategory: '   ' }))
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/непустой строкой/)
+  })
+
+  it('v5.11: validateDeckFormat отклоняет не-строковый deckCategory', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ deckId: 'num-cat', deckCategory: 42 }))
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/непустой строкой/)
+  })
+
+  it('v5.11: deckCategory опционален — колода без него проходит валидацию', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ deckId: 'no-cat' }))
+    expect(res.ok).toBe(true)
+    expect(res.deck.deckCategory).toBeNull()
+  })
+
+  it('v5.11: normalizeDeck сохраняет deckCategory при импорте', () => {
+    const d = useDeck()
+    const res = d.importDeck(makeDeck({ deckId: 'cat-kept', deckCategory: 'couples' }))
+    expect(res.ok).toBe(true)
+    expect(res.deck.deckCategory).toBe('couples')
+    // И в customDecks массиве
+    const stored = d.customDecks.value.find(x => x.deckId === 'cat-kept')
+    expect(stored.deckCategory).toBe('couples')
   })
 })

@@ -8,13 +8,22 @@
   >
     <!-- Шапка: скрыта когда isFinished -->
     <header v-if="!isFinished" class="text-center mb-6" role="banner">
-      <div class="flex justify-between items-center mb-2">
+      <div class="flex justify-between items-center mb-2 gap-2">
         <!-- Кнопка "Закрыть" — кружок с крестиком, крупная для пальца -->
-        <button @click="goBack" class="w-11 h-11 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 hover:bg-white/15 transition-all text-2xl leading-none transition-all" aria-label="Закрыть и вернуться на главную" title="На главную">
+        <button @click="goBack" class="w-11 h-11 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 hover:bg-white/15 transition-all text-2xl leading-none transition-all shrink-0" aria-label="Закрыть и вернуться на главную" title="На главную">
           ⊗
         </button>
-        <div class="text-sm opacity-80" aria-live="polite">
-          {{ currentOrder?.name }} • Вопрос {{ currentTurn + 1 }} из {{ currentOrder?.sequence.length }}
+        <!-- v5.11: бейдж категории колоды + строка «порядок A • Вопрос N из M» -->
+        <div class="text-sm opacity-80 flex items-center justify-end gap-2 min-w-0 flex-wrap" aria-live="polite">
+          <span
+            v-if="deckCategoryInfo"
+            class="text-[10px] px-2 py-0.5 rounded-full font-bold leading-none border whitespace-nowrap"
+            :style="`background-color: ${deckCategoryInfo.color}20; border-color: ${deckCategoryInfo.color}60; color: ${deckCategoryInfo.color};`"
+            :title="`Категория колоды: ${deckCategoryInfo.name}`"
+          >{{ deckCategoryInfo.name }}</span>
+          <span class="whitespace-nowrap">
+            {{ currentOrder?.name }} • Вопрос {{ currentTurn + 1 }} из {{ currentOrder?.sequence.length }}
+          </span>
         </div>
       </div>
       <p class="text-xs opacity-60">
@@ -205,16 +214,25 @@ const {
   passedIds, skippedIds, activeSkippedCount, isAnswered, isSkipped,
   isJumpedTurn, isNextOpened,
   startTime, elapsedMs, deck,
+  // v5.11: для бейджа категории колоды в шапке
+  deckCategories,
   nextQuestion, nextTurn, prevQuestion, skipQuestion, resetProgress, isFinished,
   resumeTimer, pauseTimer, getCurrentElapsedMs, formatDuration
 } = useDeck()
 
-// v5.3: категория текущего вопроса
+// v5.3: категория текущего вопроса (ВНУТРИ колоды)
 const currentCategory = computed(() => {
   if (!currentQuestion.value?.categoryId || !deck.value) return null
   const cats = deck.value.categories
   if (!cats) return null
   return cats[currentQuestion.value.categoryId] || null
+})
+
+// v5.11: категория КОЛОДЫ (для бейджа в шапке)
+const deckCategoryInfo = computed(() => {
+  const slug = deck.value?.deckCategory
+  if (!slug) return null
+  return deckCategories[slug] || null
 })
 
 // v5.3: класс для ячейки шкалы прогресса

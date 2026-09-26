@@ -38,7 +38,14 @@
               <!-- Карточка колоды — жёлтый фон, как у выбранной -->
               <div class="relative p-4 bg-yellow-500 text-gray-900">
                 <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ savedDeckName }}</div>
-                <div class="flex items-center gap-1 mb-2">
+                <!-- v5.11: бейджи — Категория первая, затем тип, затем lang -->
+                <div class="flex items-center gap-1 mb-2 flex-wrap">
+                  <span
+                    v-if="deck?.deckCategory"
+                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                    :style="`background-color: ${deckCategoryColor(deck.deckCategory)}; border-color: ${deckCategoryColor(deck.deckCategory)}; color: white;`"
+                    :title="`Категория колоды: ${deckCategoryName(deck.deckCategory)}`"
+                  >{{ deckCategoryName(deck.deckCategory) }}</span>
                   <span
                     class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
                     :title="isCustomDeck(deckId) ? 'Загруженная колода' : 'Встроенная колода'"
@@ -287,8 +294,14 @@
               >
                 <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                 <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ selectedDeck?.name }}</div>
-                <!-- Бейджи одного размера: тип + lang -->
-                <div class="flex items-center gap-1 mb-2">
+                <!-- v5.11: бейджи — Категория первая, затем тип, затем lang -->
+                <div class="flex items-center gap-1 mb-2 flex-wrap">
+                  <span
+                    v-if="selectedDeck?.deckCategory"
+                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                    :style="`background-color: ${deckCategoryColor(selectedDeck.deckCategory)}; border-color: ${deckCategoryColor(selectedDeck.deckCategory)}; color: white;`"
+                    :title="`Категория колоды: ${deckCategoryName(selectedDeck.deckCategory)}`"
+                  >{{ deckCategoryName(selectedDeck.deckCategory) }}</span>
                   <span
                     class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                     :class="isCustomDeck(selectedDeckId)
@@ -343,7 +356,7 @@
             <!-- v5.6: показываем каталог если колода не выбрана, ИЛИ пользователь нажал «Сменить» -->
             <div v-show="!selectedDeckId || isDeckCatalogExpanded">
               <!-- Шапка: поиск с кнопкой очистки + фильтры + импорт из файла -->
-              <div class="flex flex-wrap items-center gap-3 mb-4">
+              <div class="flex flex-wrap items-center gap-3 mb-3">
                 <div class="relative flex-grow min-w-[200px]">
                   <input
                     ref="deckSearchInput"
@@ -380,6 +393,35 @@
                 </label>
               </div>
 
+              <!-- v5.11: второй ряд чипов фильтра по категориям.
+                   Показывается только когда категорий ≥3 (есть из чего выбирать). -->
+              <div v-if="showCategoryFilters" class="flex flex-wrap items-center gap-2 mb-4" role="group" aria-label="Фильтр по категории колоды">
+                <button
+                  @click="deckCategoryFilter = null"
+                  :aria-pressed="deckCategoryFilter === null"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border"
+                  :class="deckCategoryFilter === null
+                    ? 'bg-white/30 border-white/40'
+                    : 'bg-white/5 hover:bg-white/15 border-white/15 text-white/70'"
+                >
+                  Все категории
+                </button>
+                <button
+                  v-for="c in deckCategoryFilters"
+                  :key="c.slug"
+                  @click="deckCategoryFilter = (deckCategoryFilter === c.slug ? null : c.slug)"
+                  :aria-pressed="deckCategoryFilter === c.slug"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border flex items-center gap-1.5"
+                  :style="deckCategoryFilter === c.slug
+                    ? `background-color: ${c.color}; border-color: ${c.color}; color: white;`
+                    : `background-color: ${c.color}15; border-color: ${c.color}50; color: ${c.color};`"
+                >
+                  <span class="w-2 h-2 rounded-full" :style="`background-color: ${c.color}`" aria-hidden="true"></span>
+                  <span>{{ c.name }}</span>
+                  <span class="opacity-60">({{ c.count }})</span>
+                </button>
+              </div>
+
               <!-- ── Секция «Мои колоды» (встроенные + кастомные) ── -->
               <div>
                 <h3 class="text-sm font-bold opacity-60 mb-3">МОИ КОЛОДЫ</h3>
@@ -394,8 +436,17 @@
                 >
                   <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ d.name }}</div>
-                  <!-- Бейджи одного размера: тип + lang. leading-none + одинаковый padding + border. -->
-                  <div class="flex items-center gap-1 mb-2">
+                  <!-- v5.11: бейджи — Категория первая (важнее), затем тип, затем lang.
+                       Все одного размера (leading-none + border у всех). -->
+                  <div class="flex items-center gap-1 mb-2 flex-wrap">
+                    <span
+                      v-if="d.deckCategory"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                      :style="selectedDeckId === d.deckId
+                        ? `background-color: ${deckCategoryColor(d.deckCategory)}; border-color: ${deckCategoryColor(d.deckCategory)}; color: white;`
+                        : `background-color: ${deckCategoryColor(d.deckCategory)}20; border-color: ${deckCategoryColor(d.deckCategory)}60; color: ${deckCategoryColor(d.deckCategory)};`"
+                      :title="`Категория колоды: ${deckCategoryName(d.deckCategory)}`"
+                    >{{ deckCategoryName(d.deckCategory) }}</span>
                     <span
                       class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                       :class="d.kind === 'builtin'
@@ -754,6 +805,8 @@ const {
   exportBackup, importBackup,
   // v5.4: unified catalog
   catalogDecks, isCustomDeck,
+  // v5.11: deck categories
+  deckCategories, deckCategorySlugs,
   // v5.2: catalog (remote)
   catalog, catalogLoading, catalogError, catalogLastFetch,
   loadCatalog, loadDeckFromUrl, checkDeckUpdates
@@ -768,6 +821,8 @@ const emptyOrders = Array.from({ length: 10 }, (_, i) => ({
 // ─── v5.4: Единый каталог колод (поиск + фильтры) ─────────────
 const deckSearch = ref('')
 const deckFilter = ref('all')  // v5.10: 'all' | 'mine' (раньше был 'builtin' | 'custom' — убран)
+// v5.11: фильтр по категории колоды (slug или null = все категории).
+const deckCategoryFilter = ref(null)
 // v5.6: progressive disclosure — после выбора колоды каталог коллапсируется
 // в компактную плашку, чтобы освободить место для шага 2.
 // true = каталог развёрнут (виден полный список); false = показана плашка.
@@ -825,11 +880,20 @@ const deckFilters = computed(() => {
     return (item.name || '').toLowerCase().includes(q) ||
            (item.description || '').toLowerCase().includes(q)
   }
-  const builtinCount = catalogDecks.value.filter(d => d.kind === 'builtin' && matchesSearch(d)).length
-  const customCount = catalogDecks.value.filter(d => d.kind === 'custom' && matchesSearch(d)).length
+  // v5.11: filterByCategory — учитывает активный фильтр по категории колоды.
+  const matchesCategory = (d) => {
+    if (!deckCategoryFilter.value) return true
+    return d.deckCategory === deckCategoryFilter.value
+  }
+  const matchesCategoryForRemote = (item) => {
+    if (!deckCategoryFilter.value) return true
+    return item.deckCategory === deckCategoryFilter.value
+  }
+  const builtinCount = catalogDecks.value.filter(d => d.kind === 'builtin' && matchesSearch(d) && matchesCategory(d)).length
+  const customCount = catalogDecks.value.filter(d => d.kind === 'custom' && matchesSearch(d) && matchesCategory(d)).length
   // Каталог: только те, что ещё не загружены (isDeckAlreadyLoaded)
   const remoteCount = catalog.value
-    .filter(item => !isDeckAlreadyLoaded(item.deckId) && matchesSearch(item))
+    .filter(item => !isDeckAlreadyLoaded(item.deckId) && matchesSearch(item) && matchesCategoryForRemote(item))
     .length
   // v5.10: фильтр «Встроенные» убран — бесполезен (встроенных всего 2, всегда видны).
   // «Загруженные» переименован в «Мои колоды» (включает и встроенные, и кастомные).
@@ -839,11 +903,63 @@ const deckFilters = computed(() => {
   ]
 })
 
+// v5.11: чипы фильтра по категориям колод.
+// Показываем только если категорий ≥3 в сумме (Мои колоды + Каталог).
+// Счётчик учитывает активный поиск (как и deckFilters).
+const deckCategoryFilters = computed(() => {
+  const q = deckSearch.value.trim().toLowerCase()
+  const matchesSearch = (item) => {
+    if (!q) return true
+    return (item.name || '').toLowerCase().includes(q) ||
+           (item.description || '').toLowerCase().includes(q)
+  }
+  const counts = {}
+  for (const slug of deckCategorySlugs) counts[slug] = 0
+  // Локальные (builtin + custom)
+  for (const d of catalogDecks.value) {
+    if (d.deckCategory && matchesSearch(d)) {
+      counts[d.deckCategory] = (counts[d.deckCategory] || 0) + 1
+    }
+  }
+  // Каталог (не загруженные)
+  for (const item of catalog.value) {
+    if (isDeckAlreadyLoaded(item.deckId)) continue
+    if (!matchesSearch(item)) continue
+    if (item.deckCategory) {
+      counts[item.deckCategory] = (counts[item.deckCategory] || 0) + 1
+    }
+  }
+  // Формируем список с счётчиком, отфильтровываем нулевые
+  const list = deckCategorySlugs
+    .map(slug => ({
+      slug,
+      name: deckCategories[slug]?.name || slug,
+      color: deckCategories[slug]?.color || '#888',
+      count: counts[slug] || 0
+    }))
+    .filter(c => c.count > 0)
+  return list
+})
+
+// v5.11: показывать ли второй ряд чипов категорий — только когда категорий ≥3.
+// ИначеUI захламляется ради 1-2 чипов.
+const showCategoryFilters = computed(() => deckCategoryFilters.value.length >= 3)
+
+// v5.11: цвет бейджа категории колоды — для UI (карточки, шапка GameView).
+function deckCategoryColor(slug) {
+  return deckCategories[slug]?.color || '#888'
+}
+function deckCategoryName(slug) {
+  return deckCategories[slug]?.name || slug
+}
+
 const filteredCatalogDecks = computed(() => {
   const q = deckSearch.value.trim().toLowerCase()
   // v5.10: deckFilter теперь 'all' | 'mine'. 'mine' = показываем все локальные
   // (builtin + custom). 'all' = то же, но в шаблоне ещё видна секция «Каталог» снизу.
+  // v5.11: учитываем фильтр по категории (deckCategoryFilter).
   return catalogDecks.value.filter(d => {
+    if (deckCategoryFilter.value && d.deckCategory !== deckCategoryFilter.value) return false
     // Для 'mine' фильтр по kind не нужен — показываем все локальные.
     // (Если понадобится отдельно builtin/custom — вернуть логику.)
     if (!q) return true
@@ -898,9 +1014,14 @@ const searchHasNoMatchInRemote = computed(() => {
 // v5.5: filteredRemoteCatalog — единый поиск работает и на локальные, и на удалённые.
 // Скрываем уже загруженные + применяем тот же deckSearch, что и в верхней секции.
 // Сортировка по имени (ru-locale) — как и в верхней секции.
+// v5.11: учитываем фильтр по категории (deckCategoryFilter).
 const filteredRemoteCatalog = computed(() => {
   // Скрываем уже загруженные
   let items = catalog.value.filter(item => !isDeckAlreadyLoaded(item.deckId))
+  // Фильтр по категории (v5.11)
+  if (deckCategoryFilter.value) {
+    items = items.filter(item => item.deckCategory === deckCategoryFilter.value)
+  }
   // Поиск (тот же deckSearch, что и вверху)
   const q = deckSearch.value.trim().toLowerCase()
   if (q) {
