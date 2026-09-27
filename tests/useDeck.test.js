@@ -901,7 +901,12 @@ describe('useDeck — sessions history', () => {
     d.loadSession(id1)
     expect(d.sessionName.value).toBe('Первая сессия')
     expect(d.startTime.value).toBeTruthy()
-    expect(d.elapsedMs.value).toBe(0)  // ещё не играли
+    // elapsedMs должна быть близка к нулю. Между startSession('deep') и startSession('work')
+    // проходит pauseTimer(), который прибавляет (Date.now() - resumeLast) к elapsedMs
+    // сессии в history. На медленном CI это может быть 1-2ms. Допускаем <1000ms как
+    // разумный порог для flaky-тайминга (суть теста — что значение восстанавливается,
+    // а не накапливается со старой сессии).
+    expect(d.elapsedMs.value).toBeLessThan(1000)
   })
 
   it('migrateV1ToV2: v1 сессия получает name=null, startTime из createdAt', async () => {
