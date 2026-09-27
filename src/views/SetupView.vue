@@ -42,10 +42,13 @@
                 <div class="flex items-center gap-1 mb-2 flex-wrap">
                   <span
                     v-if="deck?.deckCategory"
-                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border inline-flex items-center gap-1"
                     :style="`background-color: ${deckCategoryColor(deck.deckCategory)}; border-color: ${deckCategoryColor(deck.deckCategory)}; color: white;`"
                     :title="`Категория колоды: ${deckCategoryName(deck.deckCategory)}`"
-                  >{{ deckCategoryName(deck.deckCategory) }}</span>
+                  >
+                    <span v-if="deckCategoryIcon(deck.deckCategory)" class="text-[11px] leading-none" aria-hidden="true">{{ deckCategoryIcon(deck.deckCategory) }}</span>
+                    <span>{{ deckCategoryName(deck.deckCategory) }}</span>
+                  </span>
                   <span
                     class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-gray-900/10 text-gray-700 border-gray-900/20"
                     :title="isCustomDeck(deckId) ? 'Загруженная колода' : 'Встроенная колода'"
@@ -298,10 +301,13 @@
                 <div class="flex items-center gap-1 mb-2 flex-wrap">
                   <span
                     v-if="selectedDeck?.deckCategory"
-                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                    class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border inline-flex items-center gap-1"
                     :style="`background-color: ${deckCategoryColor(selectedDeck.deckCategory)}; border-color: ${deckCategoryColor(selectedDeck.deckCategory)}; color: white;`"
                     :title="`Категория колоды: ${deckCategoryName(selectedDeck.deckCategory)}`"
-                  >{{ deckCategoryName(selectedDeck.deckCategory) }}</span>
+                  >
+                    <span v-if="deckCategoryIcon(selectedDeck.deckCategory)" class="text-[11px] leading-none" aria-hidden="true">{{ deckCategoryIcon(selectedDeck.deckCategory) }}</span>
+                    <span>{{ deckCategoryName(selectedDeck.deckCategory) }}</span>
+                  </span>
                   <span
                     class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                     :class="isCustomDeck(selectedDeckId)
@@ -411,12 +417,12 @@
                   :key="c.slug"
                   @click="deckCategoryFilter = (deckCategoryFilter === c.slug ? null : c.slug)"
                   :aria-pressed="deckCategoryFilter === c.slug"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border flex items-center gap-1.5"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border inline-flex items-center gap-1.5"
                   :style="deckCategoryFilter === c.slug
                     ? `background-color: ${c.color}; border-color: ${c.color}; color: white;`
                     : `background-color: ${c.color}15; border-color: ${c.color}50; color: ${c.color};`"
                 >
-                  <span class="w-2 h-2 rounded-full" :style="`background-color: ${c.color}`" aria-hidden="true"></span>
+                  <span v-if="c.icon" class="text-sm leading-none" aria-hidden="true">{{ c.icon }}</span>
                   <span>{{ c.name }}</span>
                   <span class="opacity-60">({{ c.count }})</span>
                 </button>
@@ -437,16 +443,20 @@
                   <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ d.name }}</div>
                   <!-- v5.11: бейджи — Категория первая (важнее), затем тип, затем lang.
-                       Все одного размера (leading-none + border у всех). -->
+                       Все одного размера (leading-none + border у всех).
+                       v5.13: бейдж категории содержит иконку перед названием. -->
                   <div class="flex items-center gap-1 mb-2 flex-wrap">
                     <span
                       v-if="d.deckCategory"
-                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border inline-flex items-center gap-1"
                       :style="selectedDeckId === d.deckId
                         ? `background-color: ${deckCategoryColor(d.deckCategory)}; border-color: ${deckCategoryColor(d.deckCategory)}; color: white;`
                         : `background-color: ${deckCategoryColor(d.deckCategory)}20; border-color: ${deckCategoryColor(d.deckCategory)}60; color: ${deckCategoryColor(d.deckCategory)};`"
                       :title="`Категория колоды: ${deckCategoryName(d.deckCategory)}`"
-                    >{{ deckCategoryName(d.deckCategory) }}</span>
+                    >
+                      <span v-if="deckCategoryIcon(d.deckCategory)" class="text-[11px] leading-none" aria-hidden="true">{{ deckCategoryIcon(d.deckCategory) }}</span>
+                      <span>{{ deckCategoryName(d.deckCategory) }}</span>
+                    </span>
                     <span
                       class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                       :class="d.kind === 'builtin'
@@ -542,10 +552,13 @@
                   <div class="flex items-center gap-1 mb-2 flex-wrap">
                     <span
                       v-if="item.deckCategory"
-                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border inline-flex items-center gap-1"
                       :style="`background-color: ${deckCategoryColor(item.deckCategory)}20; border-color: ${deckCategoryColor(item.deckCategory)}60; color: ${deckCategoryColor(item.deckCategory)};`"
                       :title="`Категория колоды: ${deckCategoryName(item.deckCategory)}`"
-                    >{{ deckCategoryName(item.deckCategory) }}</span>
+                    >
+                      <span v-if="deckCategoryIcon(item.deckCategory)" class="text-[11px] leading-none" aria-hidden="true">{{ deckCategoryIcon(item.deckCategory) }}</span>
+                      <span>{{ deckCategoryName(item.deckCategory) }}</span>
+                    </span>
                     <span
                       class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-white/10 text-white/60 border-white/15"
                       title="Колода из удалённого каталога"
@@ -942,6 +955,7 @@ const deckCategoryFilters = computed(() => {
       slug,
       name: deckCategories[slug]?.name || slug,
       color: deckCategories[slug]?.color || '#888',
+      icon: deckCategories[slug]?.icon || null,    // v5.13: Unicode монохромная иконка
       count: counts[slug] || 0
     }))
     .filter(c => c.count > 0)
@@ -958,6 +972,10 @@ function deckCategoryColor(slug) {
 }
 function deckCategoryName(slug) {
   return deckCategories[slug]?.name || slug
+}
+// v5.13: монохромная Unicode-иконка категории (наследует цвет бейджа).
+function deckCategoryIcon(slug) {
+  return deckCategories[slug]?.icon || null
 }
 
 const filteredCatalogDecks = computed(() => {

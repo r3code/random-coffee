@@ -13,14 +13,18 @@
         <button @click="goBack" class="w-11 h-11 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 hover:bg-white/15 transition-all text-2xl leading-none transition-all shrink-0" aria-label="Закрыть и вернуться на главную" title="На главную">
           ⊗
         </button>
-        <!-- v5.11: бейдж категории колоды + строка «порядок A • Вопрос N из M» -->
+        <!-- v5.11: бейдж категории колоды + строка «порядок A • Вопрос N из M».
+             v5.13: бейдж содержит иконку перед названием. -->
         <div class="text-sm opacity-80 flex items-center justify-end gap-2 min-w-0 flex-wrap" aria-live="polite">
           <span
             v-if="deckCategoryInfo"
-            class="text-[10px] px-2 py-0.5 rounded-full font-bold leading-none border whitespace-nowrap"
+            class="text-[10px] px-2 py-0.5 rounded-full font-bold leading-none border whitespace-nowrap inline-flex items-center gap-1"
             :style="`background-color: ${deckCategoryInfo.color}20; border-color: ${deckCategoryInfo.color}60; color: ${deckCategoryInfo.color};`"
             :title="`Категория колоды: ${deckCategoryInfo.name}`"
-          >{{ deckCategoryInfo.name }}</span>
+          >
+            <span v-if="deckCategoryInfo.icon" class="text-[11px] leading-none" aria-hidden="true">{{ deckCategoryInfo.icon }}</span>
+            <span>{{ deckCategoryInfo.name }}</span>
+          </span>
           <span class="whitespace-nowrap">
             {{ currentOrder?.name }} • Вопрос {{ currentTurn + 1 }} из {{ currentOrder?.sequence.length }}
           </span>
@@ -234,6 +238,13 @@ const deckCategoryInfo = computed(() => {
   if (!slug) return null
   return deckCategories[slug] || null
 })
+
+// v5.13: тот же объект, но удобный для UI (slug + name + color + icon)
+// Используется в шапке GameView для отрисовки бейджа.
+function deckCategoryInfoForUI(slug) {
+  if (!slug) return null
+  return deckCategories[slug] || null
+}
 
 // v5.3: класс для ячейки шкалы прогресса
 function getProgressCellClass(qid, index) {

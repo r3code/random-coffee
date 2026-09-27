@@ -146,6 +146,25 @@ describe('data/decks.js', () => {
       expect(cats.self).toBeDefined()
       expect(cats.party).toBeDefined()
     })
+
+    // v5.13: каждая категория имеет монохромную Unicode-иконку
+    it('v5.13: deckCategories содержит icon для каждой категории', async () => {
+      const mod = await import('@/data/decks')
+      const cats = mod.deckCategories
+      for (const [slug, c] of Object.entries(cats)) {
+        expect(c.icon).toBeTruthy()
+        expect(typeof c.icon).toBe('string')
+        expect(c.icon.length).toBeGreaterThan(0)
+      }
+      // Проверяем конкретные иконки (не меняем случайно)
+      expect(cats.couples.icon).toBe('\u2764')     // ❤
+      expect(cats['first-date'].icon).toBe('\u2615') // ☕
+      expect(cats.friendship.icon).toBe('\u221E')   // ∞
+      expect(cats.family.icon).toBe('\u2302')       // ⌂
+      expect(cats.work.icon).toBe('\u2692')         // ⚒
+      expect(cats.self.icon).toBe('\u25C9')         // ◉
+      expect(cats.party.icon).toBe('\u273A')         // ✺
+    })
   })
 })
 

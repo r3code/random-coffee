@@ -37,14 +37,17 @@ export function generateOrder(questions, seed) {
 // v5.12: список категорий остаётся здесь же — он нужен для валидации импортируемых
 // колод из каталога. Сами колоды для категорий `couples`, `first-date`,
 // `friendship`, `family` живут в репо random-coffee-decks.
+// v5.13: пересмотрена палитра (Tailwind 400-варианты для лучшего контраста
+// на фиолетовом фоне тёмной темы). Добавлено поле `icon` (Unicode монохромный)
+// — показывается в бейджах перед названием для мгновенного опознания категории.
 export const deckCategories = {
-  'couples':     { name: 'Для пар',        color: '#ec4899' },
-  'first-date':  { name: 'Знакомство',     color: '#f59e0b' },
-  'friendship':  { name: 'Дружба',         color: '#10b981' },
-  'family':      { name: 'Семья',          color: '#8b5cf6' },
-  'work':        { name: 'Работа',        color: '#3b82f6' },
-  'self':        { name: 'Самопознание',   color: '#06b6d4' },
-  'party':       { name: 'Группа',         color: '#f43f5e' }
+  'couples':     { name: 'Для пар',        color: '#f472b6', icon: '\u2764' /* ❤ */ },
+  'first-date':  { name: 'Знакомство',     color: '#fb923c', icon: '\u2615' /* ☕ */ },
+  'friendship':  { name: 'Дружба',         color: '#a3e635', icon: '\u221E' /* ∞ */ },
+  'family':      { name: 'Семья',          color: '#facc15', icon: '\u2302' /* ⌂ */ },
+  'work':        { name: 'Работа',        color: '#38bdf8', icon: '\u2692' /* ⚒ */ },
+  'self':        { name: 'Самопознание',   color: '#22d3ee', icon: '\u25C9' /* ◉ */ },
+  'party':       { name: 'Группа',         color: '#fb7185', icon: '\u273A' /* ✺ */ }
 }
 
 // v5.11: экспортируем массив slug'ов для валидации (используется в useDeck.validateDeckFormat).
