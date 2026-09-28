@@ -866,23 +866,32 @@ const {
 
 // v5.15: показ онбординга.
 // showOnboarding —true если онбординг нужно показать (пользователь ещё не нажимал «Больше не показывать»).
+// onboardingDismissed — локальный флаг сессии: «Понятно, начать» закрывает модал в текущей сессии
+//   (без markOnboardingSeen — при следующем заходе онбординг покажется снова).
 // showOnboardingFromFooter —true если пользователь нажал «ℹ️ О приложении» в footer (повторный показ).
-const showOnboarding = computed(() => !seenOnboarding.value && !shareParams.value)
+const onboardingDismissed = ref(false)
+const showOnboarding = computed(() => !seenOnboarding.value && !onboardingDismissed.value && !shareParams.value)
 const showOnboardingFromFooter = ref(false)
 
 function closeOnboarding() {
-  // «Понятно, начать» — закрывает модал, но НЕ ставит флаг. Покажется снова при следующем заходе.
+  // «Понятно, начать» — закрывает модал в текущей сессии, но НЕ ставит флаг.
+  // При следующем заходе (новая вкладка/перезагрузка) онбординг покажется снова,
+  // пока пользователь не нажмёт «Больше не показывать».
+  onboardingDismissed.value = true
   showOnboardingFromFooter.value = false
 }
 
 function dismissOnboarding() {
-  // «Больше не показывать» — ставит флаг, больше не покажется автоматически.
+  // «Больше не показывать» — ставит флаг в localStorage, больше не покажется автоматически.
   markOnboardingSeen()
+  onboardingDismissed.value = true
   showOnboardingFromFooter.value = false
 }
 
 function openOnboardingFromFooter() {
   // ℹ️ О приложении — повторный показ онбординга (флаг не сбрасываем).
+  // onboardingDismissed тоже не трогаем — после закрытия через «Понятно»
+  // пользователь должен снова иметь возможность открыть через «ℹ️ О приложении».
   showOnboardingFromFooter.value = true
 }
 

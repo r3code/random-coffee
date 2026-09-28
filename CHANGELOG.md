@@ -17,6 +17,14 @@
 - Карточка истории: кнопка «Открыть» показывается всегда (включая активную сессию). Бейдж «● Активна» убран.
 - Карточка игры: кнопка ⊗ вместо 🏠. Полоска категории `absolute top-0` (в самом верху, не сдвигает текст). Текст вопроса центрирован (`pt-6 pb-10`).
 
+## [5.15.1] — 2026-09-28
+
+### Исправлено
+- **Кнопка «Понятно, начать» не закрывала онбординг** — `showOnboarding` computed зависел только от `seenOnboarding` (флаг localStorage), а `closeOnboarding()` не менял этот флаг. Добавлен локальный ref `onboardingDismissed`, который `closeOnboarding` сбрасывает в `true` — модал закрывается в текущей сессии. При следующем заходе (новая вкладка/перезагрузка) онбординг покажется снова, пока пользователь не нажмёт «Больше не показывать».
+
+### Изменено
+- **Текст в шаге 1 онбординга** — заменён с «Выберите колоду вопросов — для пар, друзей, семьи или первого свидания.» на «Выберите колоду — для облегчения общения: для знакомства с коллегой, для пар и первого свидания, для друзей. Выбери подходящее тебе из каталога.»
+
 ## [5.15.0] — 2026-09-28
 
 ### Добавлено
@@ -468,7 +476,8 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.15.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.15.1...HEAD
+[5.15.1]: https://github.com/r3code/random-coffee/releases/tag/v5.15.1
 [5.15.0]: https://github.com/r3code/random-coffee/releases/tag/v5.15.0
 [5.14.0]: https://github.com/r3code/random-coffee/releases/tag/v5.14.0
 [5.13.0]: https://github.com/r3code/random-coffee/releases/tag/v5.13.0

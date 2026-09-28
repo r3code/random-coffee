@@ -30,7 +30,7 @@
           <ol class="space-y-2 text-sm">
             <li class="flex gap-3">
               <span class="shrink-0 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 flex items-center justify-center font-bold text-xs">1</span>
-              <span class="opacity-90">Выберите колоду вопросов — для пар, друзей, семьи или первого свидания.</span>
+              <span class="opacity-90">Выберите колоду — для облегчения общения: для знакомства с коллегой, для пар и первого свидания, для друзей. Выбери подходящее тебе из каталога.</span>
             </li>
             <li class="flex gap-3">
               <span class="shrink-0 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 flex items-center justify-center font-bold text-xs">2</span>
