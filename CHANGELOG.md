@@ -17,6 +17,19 @@
 - Карточка истории: кнопка «Открыть» показывается всегда (включая активную сессию). Бейдж «● Активна» убран.
 - Карточка игры: кнопка ⊗ вместо 🏠. Полоска категории `absolute top-0` (в самом верху, не сдвигает текст). Текст вопроса центрирован (`pt-6 pb-10`).
 
+## [5.14.0] — 2026-09-28
+
+### Изменено
+- **Новая иконка приложения** — сгенерирована через image-generation skill. На иконке: две белые чашки на фиолетовом фоне, два речевых пузыря с «хвостиками» как в комиксах (показывают диалог двух людей). Заменила старую «просто фиолетовый квадрат с градиентом».
+- **Все размеры через `scripts/generate-icons.py`** (Pillow):
+  - `icon-192.png` — 192×192, для PWA manifest
+  - `icon-512.png` — 512×512, для PWA manifest
+  - `icon-maskable-512.png` — 512×512, maskable: контент в safe zone 80%, фон indigo-500 #6366f1 (для Android)
+  - `apple-touch-icon.png` — 180×180, без alpha (iOS не любит прозрачность), на indigo-500 фоне
+  - `favicon.ico` — multi-size (16, 32, 48) в одном .ico файле
+- Скрипт `scripts/generate-icons.py` — для повторной генерации при обновлении иконки.
+- SPEC.md — шапка обновлена с v5.13 до v5.14. Добавлен раздел v5.14.0. §15 — добавлена строка v5.14.0 в таблицу реализованных фич.
+
 ## [5.13.0] — 2026-09-26
 
 ### Изменено
@@ -432,7 +445,8 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.13.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.14.0...HEAD
+[5.14.0]: https://github.com/r3code/random-coffee/releases/tag/v5.14.0
 [5.13.0]: https://github.com/r3code/random-coffee/releases/tag/v5.13.0
 [5.12.0]: https://github.com/r3code/random-coffee/releases/tag/v5.12.0
 [5.11.0]: https://github.com/r3code/random-coffee/releases/tag/v5.11.0
