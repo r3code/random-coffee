@@ -1554,3 +1554,59 @@ describe('useDeck — v5.5 edge cases', () => {
     expect(stored.deckCategory).toBe('couples')
   })
 })
+
+// ─── v5.15: Онбординг ──────────────────────────────────────────────
+
+describe('useDeck — v5.15 onboarding', () => {
+  let useDeck
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    useDeck = mod.useDeck
+  })
+
+  it('seenOnboarding = false при первом заходе (нет флага в localStorage)', () => {
+    const d = useDeck()
+    expect(d.seenOnboarding.value).toBe(false)
+    expect(localStorage.getItem('coffee_onboarding_seen_v5_15')).toBeNull()
+  })
+
+  it('markOnboardingSeen() ставит флаг в localStorage и обновляет ref', () => {
+    const d = useDeck()
+    expect(d.seenOnboarding.value).toBe(false)
+    d.markOnboardingSeen()
+    expect(d.seenOnboarding.value).toBe(true)
+    expect(localStorage.getItem('coffee_onboarding_seen_v5_15')).toBe('1')
+  })
+
+  it('resetOnboarding() снимает флаг (для тестирования/разработки)', () => {
+    const d = useDeck()
+    d.markOnboardingSeen()
+    expect(d.seenOnboarding.value).toBe(true)
+    d.resetOnboarding()
+    expect(d.seenOnboarding.value).toBe(false)
+    expect(localStorage.getItem('coffee_onboarding_seen_v5_15')).toBeNull()
+  })
+
+  it('seenOnboarding = true если флаг уже есть в localStorage (возврат пользователя)', async () => {
+    localStorage.setItem('coffee_onboarding_seen_v5_15', '1')
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+    expect(d.seenOnboarding.value).toBe(true)
+  })
+
+  it('версионный ключ: при смене суффикса v5_15 → v5_16 флаг сбрасывается', async () => {
+    // Имитируем старую версию флага (будущей v5.16)
+    localStorage.setItem('coffee_onboarding_seen_v5_14', '1')
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+    // v5_15 флага нет → онбординг покажется снова (считаем «новым» онбордингом)
+    expect(d.seenOnboarding.value).toBe(false)
+    // старый флаг не мешает
+    expect(localStorage.getItem('coffee_onboarding_seen_v5_14')).toBe('1')
+  })
+})

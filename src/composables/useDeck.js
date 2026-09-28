@@ -6,6 +6,11 @@ const sessionsKey = 'coffee_sessions'
 const activeSessionIdKey = 'coffee_active_session_id'
 const themeKey = 'theme_preference'
 const customDecksKey = 'coffee_custom_decks'
+// v5.15: флаг «пользователь видел онбординг и нажал 'Больше не показывать'».
+// Если ключа нет — онбординг показывается. Если есть (любое значение) — не показывается.
+// Версионный ключ: при существенном изменении онбординга повышаем суффикс,
+// чтобы все пользователи снова увидели обновлённый онбординг.
+const onboardingSeenKey = 'coffee_onboarding_seen_v5_15'
 
 // v5.4: sourcePath — метаданные происхождения колоды. Не показывается в UI,
 // хранится для диагностики и будущих фич.
@@ -1325,6 +1330,22 @@ function setTheme(t) {
   theme.value = t
 }
 
+// ─── v5.15: Онбординг ────────────────────────────────────────────
+// seenOnboarding — реактивный флаг: показывать ли онбординг при первом заходе.
+// true = пользователь уже видел и нажал «Больше не показывать» (не показываем).
+// false = не видел или сбросил (показываем).
+const seenOnboarding = ref(localStorage.getItem(onboardingSeenKey) === '1')
+
+function markOnboardingSeen() {
+  localStorage.setItem(onboardingSeenKey, '1')
+  seenOnboarding.value = true
+}
+
+function resetOnboarding() {
+  localStorage.removeItem(onboardingSeenKey)
+  seenOnboarding.value = false
+}
+
 // ─── Exported API ──────────────────────────────────────────────
 export function useDeck() {
   return {
@@ -1354,7 +1375,9 @@ export function useDeck() {
     resumeTimer, pauseTimer, getCurrentElapsedMs, formatDuration,
     // actions
     startSession, nextQuestion, nextTurn, prevQuestion, skipQuestion, resetProgress,
-    exportState, importState, setTheme
+    exportState, importState, setTheme,
+    // v5.15: onboarding
+    seenOnboarding, markOnboardingSeen, resetOnboarding
   }
 }
 

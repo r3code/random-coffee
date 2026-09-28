@@ -17,6 +17,29 @@
 - Карточка истории: кнопка «Открыть» показывается всегда (включая активную сессию). Бейдж «● Активна» убран.
 - Карточка игры: кнопка ⊗ вместо 🏠. Полоска категории `absolute top-0` (в самом верху, не сдвигает текст). Текст вопроса центрирован (`pt-6 pb-10`).
 
+## [5.15.0] — 2026-09-28
+
+### Добавлено
+- **Онбординг-экран при первом заходе** (Вариант C) — полноэкранный модал `OnboardingScreen.vue`:
+  - Большая иконка приложения 192×192 + название «Random Coffee» + подзаголовок «Карточки вопросов для парных разговоров»
+  - Блок «Как это работает» — 4 шага с номерами в жёлтых кружках: выбрать колоду → договориться о букве → QR/ссылка → чередование ролей
+  - Privacy-блок: ✓ Без регистрации. Сразу начать. / ✓ Данные только у вас — на устройстве. / ✓ Работает офлайн
+  - Кнопка «Понятно, начать →» (закрывает, флаг НЕ ставится — покажется снова при следующем заходе)
+  - Кнопка «Больше не показывать» (ставит флаг `coffee_onboarding_seen_v5_15` в localStorage)
+  - Не показывается при заходе через share URL (пользователь уже в сессии)
+- **Иконка в шапке SetupView** — `icon-48.png` (48×48, ~4KB) слева от названия «Random Coffee». `srcset` для retina/больших экранов (`icon-64.png` 1.5x).
+- **Постоянный подзаголовок** на главном — «Карточки вопросов для парных разговоров. Без сервера, без регистрации.» под названием.
+- **Privacy-бейдж `🔒 Локально` в footer** — мелкий шрифт, всегда виден, с `title` объясняющим что данные в localStorage.
+- **Ссылка `ℹ️ О приложении` в footer** — повторно открывает онбординг (через `showOnboardingFromFooter` ref, флаг НЕ сбрасывается).
+- Новые размеры иконок: `icon-48.png`, `icon-64.png` (через `scripts/generate-icons.py`).
+- 5 новых тестов (всего 142): seenOnboarding=false при первом заходе, markOnboardingSeen ставит флаг + ref, resetOnboarding снимает, seenOnboarding=true при возврате, версионный ключ.
+
+### Изменено
+- **`useDeck.js`** — добавлены `onboardingSeenKey`, `seenOnboarding` ref, `markOnboardingSeen()`, `resetOnboarding()`. Версионный ключ `coffee_onboarding_seen_v5_15` — при смене суффикса все пользователи снова увидят обновлённый онбординг.
+- **`SetupView.vue`** — импортирован `OnboardingScreen`, добавлены refs `showOnboarding` (computed, `!seenOnboarding && !shareParams`), `showOnboardingFromFooter`, функции `closeOnboarding`, `dismissOnboarding`, `openOnboardingFromFooter`. Шапка заменена с `<h1>Random Coffee</h1>` на flex-ряд с иконкой + названием + подзаголовком. Footer дополнен `🔒 Локально` и `ℹ️ О приложении`.
+- **`scripts/generate-icons.py`** — расширен: теперь генерирует `icon-48.png` и `icon-64.png` для шапки. Источник ищется в нескольких папках (`download/icon-variants/` → `upload/`).
+- **SPEC.md** — шапка обновлена с v5.14 до v5.15. Добавлен раздел v5.15.0. §15 — добавлена строка v5.15.0 в таблицу реализованных фич.
+
 ## [5.14.0] — 2026-09-28
 
 ### Изменено
@@ -445,7 +468,8 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.14.0...HEAD
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.15.0...HEAD
+[5.15.0]: https://github.com/r3code/random-coffee/releases/tag/v5.15.0
 [5.14.0]: https://github.com/r3code/random-coffee/releases/tag/v5.14.0
 [5.13.0]: https://github.com/r3code/random-coffee/releases/tag/v5.13.0
 [5.12.0]: https://github.com/r3code/random-coffee/releases/tag/v5.12.0

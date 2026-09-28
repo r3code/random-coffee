@@ -1,8 +1,26 @@
 <template>
   <div class="min-h-dvh bg-gradient-to-br from-indigo-900 to-purple-900 dark:from-gray-900 dark:to-gray-800 text-white p-6"
        style="padding-bottom: env(safe-area-inset-bottom);">
+    <!-- v5.15: OnboardingScreen — показывается при первом заходе (auto) или через «ℹ️ О приложении» -->
+    <OnboardingScreen
+      :visible="showOnboarding || showOnboardingFromFooter"
+      :from-footer="showOnboardingFromFooter"
+      @close="closeOnboarding"
+      @dismiss="dismissOnboarding"
+    />
+
     <div class="max-w-2xl mx-auto">
-      <h1 class="text-4xl font-bold text-center mb-8">Random Coffee</h1>
+      <!-- v5.15: шапка с иконкой приложения + название + подзаголовок -->
+      <div class="flex items-center justify-center gap-3 mb-2">
+        <img
+          src="/icon-48.png?v=5.15.0"
+          srcset="/icon-48.png?v=5.15.0 1x, /icon-64.png?v=5.15.0 1.5x"
+          alt="Random Coffee"
+          class="w-12 h-12 rounded-xl shadow-lg shrink-0"
+        />
+        <h1 class="text-4xl font-bold">Random Coffee</h1>
+      </div>
+      <p class="text-sm opacity-70 text-center mb-6">Карточки вопросов для парных разговоров. Без сервера, без регистрации.</p>
 
       <!-- Тема -->
       <div class="mb-6 flex justify-center gap-2" role="group" aria-label="Выбор темы оформления">
@@ -769,11 +787,22 @@
             </a>
           </span>
           <span>·</span>
+          <!-- v5.15: privacy-бейдж — данные хранятся локально, не на сервере -->
+          <span title="Данные сессий и колод хранятся только на вашем устройстве, в localStorage браузера. На сервер ничего не передаётся.">🔒 Локально</span>
+          <span>·</span>
           <a href="https://github.com/r3code/random-coffee" target="_blank" rel="noopener"
              class="hover:opacity-100 hover:text-yellow-400 transition-colors"
              title="Открыть репозиторий на GitHub">
             GitHub ↗
           </a>
+          <span>·</span>
+          <!-- v5.15: ссылка «О приложении» — повторно открывает онбординг -->
+          <button
+            @click="openOnboardingFromFooter"
+            class="hover:opacity-100 hover:text-yellow-400 transition-colors"
+            title="Показать экран знакомства с приложением">
+            ℹ️ О приложении
+          </button>
         </div>
       </footer>
     </div>
@@ -785,6 +814,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { useDeck, buildShareUrl, parseShareUrl } from '@/composables/useDeck'
+import OnboardingScreen from '@/components/OnboardingScreen.vue'
 
 // ─── Версия приложения и git-коммит (инжектируются через vite.config.js define) ──
 // Если запускается не через Vite (например, в тестах) — fallback на пустые строки.
@@ -829,8 +859,32 @@ const {
   deckCategories, deckCategorySlugs,
   // v5.2: catalog (remote)
   catalog, catalogLoading, catalogError, catalogLastFetch,
-  loadCatalog, loadDeckFromUrl, checkDeckUpdates
+  loadCatalog, loadDeckFromUrl, checkDeckUpdates,
+  // v5.15: onboarding
+  seenOnboarding, markOnboardingSeen
 } = useDeck()
+
+// v5.15: показ онбординга.
+// showOnboarding —true если онбординг нужно показать (пользователь ещё не нажимал «Больше не показывать»).
+// showOnboardingFromFooter —true если пользователь нажал «ℹ️ О приложении» в footer (повторный показ).
+const showOnboarding = computed(() => !seenOnboarding.value && !shareParams.value)
+const showOnboardingFromFooter = ref(false)
+
+function closeOnboarding() {
+  // «Понятно, начать» — закрывает модал, но НЕ ставит флаг. Покажется снова при следующем заходе.
+  showOnboardingFromFooter.value = false
+}
+
+function dismissOnboarding() {
+  // «Больше не показывать» — ставит флаг, больше не покажется автоматически.
+  markOnboardingSeen()
+  showOnboardingFromFooter.value = false
+}
+
+function openOnboardingFromFooter() {
+  // ℹ️ О приложении — повторный показ онбординга (флаг не сбрасываем).
+  showOnboardingFromFooter.value = true
+}
 
 // Пустой массив порядков для отображения 10 disabled-кнопок до выбора колоды
 const emptyOrders = Array.from({ length: 10 }, (_, i) => ({
