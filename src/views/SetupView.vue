@@ -30,7 +30,7 @@
           @click="setTheme(t)"
           :aria-pressed="theme === t"
           class="px-4 py-2 rounded-lg transition-all"
-          :class="theme === t ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30'"
+          :class="theme === t ? 'bg-yellow-500 text-gray-900' : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15'"
         >
           {{ t === 'light' ? '☀️ Светлая' : t === 'dark' ? '🌙 Темная' : '🔄 Авто' }}
         </button>
@@ -42,7 +42,7 @@
       <template v-if="!showNewForm">
         <!-- Продолжить сессию? -->
         <div v-if="hasSavedSession && !shareParams" class="mb-8">
-          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
+          <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
             <h2 class="text-2xl font-bold mb-3">Продолжить сессию?</h2>
 
             <!-- v5.9: вся карточка колоды + кнопка «Продолжить» — один кликабельный блок.
@@ -142,7 +142,7 @@
 
         <!-- История сессий -->
         <div v-if="sessions.length > 0" class="mb-8">
-          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
+          <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">История сессий</h2>
             <p class="text-sm opacity-80 mb-2">
               Можно параллельно вести несколько сессий с разными колодами и возвращаться к ним позже.
@@ -305,7 +305,7 @@
 
         <div class="space-y-6">
           <!-- Блок 1: Выбор колоды -->
-          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
+          <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
 
             <!-- v5.8: компактная плашка заменена на полную карточку колоды + широкая кнопка «Сменить» -->
@@ -406,15 +406,11 @@
                     @click="deckFilter = f.value"
                     :aria-pressed="deckFilter === f.value"
                     class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                    :class="deckFilter === f.value ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 dark:bg-stone-200 hover:bg-stone-300 dark:bg-white/15 dark:hover:bg-white/25'"
+                    :class="deckFilter === f.value ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 dark:bg-white/15 hover:bg-stone-300 dark:hover:bg-white/25'"
                   >
                     {{ f.label }} ({{ f.count }})
                   </button>
                 </div>
-                <label class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1" title="Импортировать колоду из .json файла">
-                  📥 Импорт из файла
-                  <input type="file" accept=".json" @change="handleImportDeck" class="hidden" />
-                </label>
               </div>
 
               <!-- v5.11: второй ряд чипов фильтра по категориям.
@@ -426,7 +422,7 @@
                   class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border"
                   :class="deckCategoryFilter === null
                     ? 'bg-stone-300 dark:bg-white/30 border-stone-400 dark:border-white/40'
-                    : 'bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:bg-white/15 border-stone-200 dark:border-stone-200 dark:border-white/15 text-stone-500 dark:text-white/70'"
+                    : 'bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:bg-white/15 border-stone-200 dark:border-white/15 text-stone-500 dark:text-white/70'"
                 >
                   Все категории
                 </button>
@@ -448,7 +444,13 @@
 
               <!-- ── Секция «Мои колоды» (встроенные + кастомные) ── -->
               <div>
-                <h3 class="text-sm font-bold opacity-60 mb-3">МОИ КОЛОДЫ</h3>
+                <h3 class="text-sm font-bold opacity-60 mb-3 flex items-center justify-between">
+                  <span>МОИ КОЛОДЫ</span>
+                  <label class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1" title="Импортировать колоду из .json файла">
+                    📥 Импорт из файла
+                    <input type="file" accept=".json" @change="handleImportDeck" class="hidden" />
+                  </label>
+                </h3>
                 <div v-if="filteredCatalogDecks.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   v-for="d in filteredCatalogDecks"
@@ -456,7 +458,7 @@
                   @click="selectDeck(d.deckId)"
                   :aria-pressed="selectedDeckId === d.deckId"
                   class="relative p-4 rounded-lg transition-all text-left"
-                  :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30'"
+                  :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15'"
                 >
                   <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ d.name }}</div>
@@ -563,7 +565,7 @@
                 <div
                   v-for="item in filteredRemoteCatalog"
                   :key="item.deckId"
-                  class="bg-stone-100 dark:bg-white/5 hover:bg-stone-100 dark:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg p-4 transition-all"
+                  class="bg-stone-100 dark:bg-white/10 hover:bg-stone-200 dark:hover:bg-white/15 border border-stone-200 dark:border-white/10 rounded-lg p-4 transition-all"
                 >
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ item.name }}</div>
                   <!-- v5.11: бейджи — Категория первая, затем «В каталоге», затем lang -->
@@ -578,12 +580,12 @@
                       <span>{{ deckCategoryName(item.deckCategory) }}</span>
                     </span>
                     <span
-                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-white/60 border-stone-200 dark:border-stone-200 dark:border-white/15"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-white/60 border-stone-200 dark:border-white/15"
                       title="Колода из удалённого каталога"
                     >В каталоге</span>
                     <span
                       v-if="item.lang"
-                      class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-white/60 border-stone-200 dark:border-stone-200 dark:border-white/15"
+                      class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-white/60 border-stone-200 dark:border-white/15"
                       :title="`Язык колоды: ${item.lang}`"
                     >{{ item.lang.split('_')[0] }}</span>
                   </div>
@@ -603,7 +605,7 @@
 
           <!-- Блок 2: Порядок (виден, disabled пока нет колоды) -->
           <div ref="step2Ref"
-               class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
+               class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="!selectedDeckId ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">2. Выберите порядок вопросов</h2>
 
@@ -645,7 +647,7 @@
                   class="p-3 rounded-lg transition-all text-center font-bold disabled:cursor-not-allowed"
                   :class="selectedOrderIndex === index
                     ? 'bg-yellow-500 text-gray-900'
-                    : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
+                    : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   {{ order?.name || '—' }}
                 </button>
@@ -655,7 +657,7 @@
 
           <!-- Блок 3: Роль (виден, disabled пока нет порядка) -->
           <div ref="step3Ref"
-               class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
+               class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="selectedOrderIndex === null ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">3. Выберите роль</h2>
 
@@ -694,7 +696,7 @@
                   class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
                   :class="selectedRole === 'reader'
                     ? 'bg-yellow-500 text-gray-900'
-                    : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
+                    : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   <div class="text-2xl mb-2">🗣️</div>
                   <div class="font-bold">Я читаю первым</div>
@@ -707,7 +709,7 @@
                   class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
                   :class="selectedRole === 'listener'
                     ? 'bg-yellow-500 text-gray-900'
-                    : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
+                    : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   <div class="text-2xl mb-2">👂</div>
                   <div class="font-bold">Я слушаю первым</div>
@@ -718,7 +720,7 @@
           </div>
 
           <!-- Блок 4: QR-код (виден, плейсхолдер пока нет роли) -->
-          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
+          <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
             <h3 class="text-xl font-bold mb-4">Синхронизация с партнёром</h3>
 
             <div v-if="!selectedRole">

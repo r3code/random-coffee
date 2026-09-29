@@ -321,7 +321,7 @@ const currentTurn = ref(activeSession.value?.currentTurn ?? 0)
 const role        = ref(activeSession.value?.role ?? null)
 const passedIds   = ref(activeSession.value?.passedIds ? [...activeSession.value.passedIds] : [])
 const skippedIds  = ref(activeSession.value?.skippedIds ? [...activeSession.value.skippedIds] : [])
-const theme       = ref(localStorage.getItem(themeKey) || 'auto')
+const theme       = ref(localStorage.getItem(themeKey) || 'dark')
 
 // v5.0: имя сессии (пользовательское, для истории — «помнить с кем говорил»)
 const sessionName = ref(activeSession.value?.name ?? null)
