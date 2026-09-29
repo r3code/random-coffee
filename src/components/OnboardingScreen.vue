@@ -27,21 +27,29 @@
         <!-- Как это работает -->
         <div class="mb-6">
           <h2 class="text-sm font-bold opacity-60 mb-3 uppercase tracking-wide">Как это работает</h2>
-          <ol class="space-y-2 text-sm">
+          <ol class="space-y-3 text-sm">
             <li class="flex gap-3">
               <span class="shrink-0 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 flex items-center justify-center font-bold text-xs">1</span>
-              <span class="opacity-90">Выберите колоду — для облегчения общения: для знакомства с коллегой, для пар и первого свидания, для друзей. Выбери подходящее тебе из каталога.</span>
+              <span class="opacity-90">Выберите колоду вопросов из каталога — что вам ближе: для знакомства с коллегой, для пар и первого свидания, для друзей.</span>
             </li>
             <li class="flex gap-3">
               <span class="shrink-0 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 flex items-center justify-center font-bold text-xs">2</span>
-              <span class="opacity-90">Договоритесь с партнёром о букве порядка (одинаковая буква = одинаковые вопросы).</span>
+              <div class="opacity-90 space-y-2">
+                <p>Синхронизация с партнёром — один из двух способов:</p>
+                <ul class="space-y-1.5 pl-1">
+                  <li class="flex gap-2">
+                    <span class="shrink-0 text-yellow-400">•</span>
+                    <span>Договоритесь об одинаковой букве порядка — оба выбирают её самостоятельно. <strong class="text-yellow-400">Важно: роли должны быть разными</strong> — один «читаю первым», другой «слушаю первым».</span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 text-yellow-400">•</span>
+                    <span>Или один выбирает всё и отправляет QR-код / ссылку — второй попадает в ту же сессию, роль назначается автоматически (противоположная).</span>
+                  </li>
+                </ul>
+              </div>
             </li>
             <li class="flex gap-3">
               <span class="shrink-0 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 flex items-center justify-center font-bold text-xs">3</span>
-              <span class="opacity-90">Покажите партнёру QR-код или отправьте ссылку — он попадёт в ту же сессию.</span>
-            </li>
-            <li class="flex gap-3">
-              <span class="shrink-0 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 flex items-center justify-center font-bold text-xs">4</span>
               <span class="opacity-90">Чередуйтесь: читаешь вопрос → отвечаешь → меняетесь ролями.</span>
             </li>
           </ol>
