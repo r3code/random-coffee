@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-dvh bg-gradient-to-br from-indigo-900 to-purple-900 dark:from-gray-900 dark:to-gray-800 text-white p-6"
+  <div class="min-h-dvh bg-stone-50 dark:bg-gradient-to-br dark:from-indigo-900 dark:to-purple-900 text-stone-900 dark:text-white p-6 transition-colors"
        style="padding-bottom: env(safe-area-inset-bottom);">
     <!-- v5.15: OnboardingScreen — показывается при первом заходе (auto) или через «ℹ️ О приложении» -->
     <OnboardingScreen
@@ -25,12 +25,12 @@
       <!-- Тема -->
       <div class="mb-6 flex justify-center gap-2" role="group" aria-label="Выбор темы оформления">
         <button
-          v-for="t in ['light', 'dark', 'auto']"
+          v-for="t in ['dark', 'light', 'auto']"
           :key="t"
           @click="setTheme(t)"
           :aria-pressed="theme === t"
           class="px-4 py-2 rounded-lg transition-all"
-          :class="theme === t ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
+          :class="theme === t ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30'"
         >
           {{ t === 'light' ? '☀️ Светлая' : t === 'dark' ? '🌙 Темная' : '🔄 Авто' }}
         </button>
@@ -42,7 +42,7 @@
       <template v-if="!showNewForm">
         <!-- Продолжить сессию? -->
         <div v-if="hasSavedSession && !shareParams" class="mb-8">
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
+          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-4">
             <h2 class="text-2xl font-bold mb-3">Продолжить сессию?</h2>
 
             <!-- v5.9: вся карточка колоды + кнопка «Продолжить» — один кликабельный блок.
@@ -93,7 +93,7 @@
             </button>
 
             <button @click="enterNewForm"
-                    class="w-full py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold mb-4">
+                    class="w-full py-3 bg-stone-400 hover:bg-stone-500 dark:bg-gray-600 dark:hover:bg-gray-500 rounded-lg font-bold mb-4">
               Новая сессия
             </button>
 
@@ -111,7 +111,7 @@
               <div v-if="continueQrDataUrl" class="inline-block bg-white p-3 rounded-lg">
                 <img :src="continueQrDataUrl" alt="QR-код для продолжения сессии" class="w-48 h-48" />
               </div>
-              <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg">
+              <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-stone-100 dark:bg-white/10 rounded-lg">
                 <span class="text-sm opacity-70">Генерация...</span>
               </div>
               <p class="text-xs opacity-70 mt-3 break-all">
@@ -124,7 +124,7 @@
                   class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-yellow-400 transition-all"
                   type="button"
                 >
-                  <span v-if="continueLinkCopied" class="text-emerald-400">✓</span>
+                  <span v-if="continueLinkCopied" class="text-emerald-600 dark:text-emerald-400">✓</span>
                   <span v-else aria-hidden="true">⧉</span>
                 </button>
               </p>
@@ -142,7 +142,7 @@
 
         <!-- История сессий -->
         <div v-if="sessions.length > 0" class="mb-8">
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">История сессий</h2>
             <p class="text-sm opacity-80 mb-2">
               Можно параллельно вести несколько сессий с разными колодами и возвращаться к ним позже.
@@ -155,7 +155,7 @@
               <div
                 v-for="s in sortedSessions"
                 :key="s.id"
-                class="bg-white/10 rounded-lg p-4 transition-all"
+                class="bg-stone-100 dark:bg-white/10 rounded-lg p-4 transition-all"
                 :class="[
                   s.id === activeSessionId ? 'ring-2 ring-yellow-500' : '',
                   highlightedSessionId === s.id ? 'ring-2 ring-emerald-400 bg-emerald-500/20' : ''
@@ -212,7 +212,7 @@
                     <!-- v5.0: переименовать сессию (inline-редактирование) -->
                     <button
                       @click="startRename(s)"
-                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-base font-bold leading-none transition-colors"
+                      class="w-9 h-9 flex items-center justify-center bg-stone-300 hover:bg-stone-400 dark:bg-gray-700/60 dark:hover:bg-gray-600 rounded-lg text-base font-bold leading-none transition-colors"
                       title="Переименовать сессию"
                       aria-label="Переименовать сессию"
                     >
@@ -220,7 +220,7 @@
                     </button>
                     <button
                       @click="handleExportSession(s.id)"
-                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-base font-bold leading-none transition-colors"
+                      class="w-9 h-9 flex items-center justify-center bg-stone-300 hover:bg-stone-400 dark:bg-gray-700/60 dark:hover:bg-gray-600 rounded-lg text-base font-bold leading-none transition-colors"
                       title="Экспортировать в файл"
                       aria-label="Экспортировать сессию в файл"
                     >
@@ -228,7 +228,7 @@
                     </button>
                     <button
                       @click="confirmDeleteSession(s.id)"
-                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white text-gray-300 rounded-lg text-base font-bold leading-none transition-colors"
+                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-stone-900 dark:hover:text-white text-gray-300 rounded-lg text-base font-bold leading-none transition-colors"
                       title="Удалить сессию"
                       aria-label="Удалить сессию"
                     >
@@ -248,7 +248,7 @@
                     type="text"
                     maxlength="128"
                     placeholder="Например: с Анной в пятницу"
-                    class="flex-grow px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-500"
+                    class="flex-grow px-3 py-2 bg-stone-100 dark:bg-white/10 border border-stone-300 dark:border-white/20 rounded-lg text-sm text-white placeholder-stone-400 dark:placeholder-white/40 focus:outline-none focus:border-yellow-500"
                     autofocus
                   />
                   <button
@@ -261,7 +261,7 @@
                   </button>
                   <button
                     @click="cancelRename"
-                    class="px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-bold"
+                    class="px-3 py-2 bg-stone-400 hover:bg-stone-500 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg text-sm font-bold"
                     title="Отмена"
                     aria-label="Отмена"
                   >
@@ -272,7 +272,7 @@
             </div>
 
             <!-- Импорт сессии + бэкап — внизу блока истории -->
-            <div class="mt-4 pt-4 border-t border-white/10 space-y-3">
+            <div class="mt-4 pt-4 border-t border-stone-200 dark:border-white/10 space-y-3">
               <label class="block w-full py-3 bg-purple-500 hover:bg-purple-400 rounded-lg font-bold text-center cursor-pointer">
                 📥 Импорт сессии из файла
                 <input type="file" accept=".json" @change="handleImport" class="hidden" />
@@ -305,7 +305,7 @@
 
         <div class="space-y-6">
           <!-- Блок 1: Выбор колоды -->
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
 
             <!-- v5.8: компактная плашка заменена на полную карточку колоды + широкая кнопка «Сменить» -->
@@ -348,13 +348,13 @@
                   <div v-if="isCustomDeck(selectedDeckId)" class="flex gap-1">
                     <button
                       @click="handleExportDeck(selectedDeckId)"
-                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-sm"
+                      class="w-8 h-8 flex items-center justify-center bg-stone-300 hover:bg-stone-400 dark:bg-gray-700/60 dark:hover:bg-gray-600 rounded-lg text-sm"
                       title="Экспортировать колоду"
                       aria-label="Экспортировать колоду"
                     >↓</button>
                     <button
                       @click="handleDeleteDeck(selectedDeckId)"
-                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white rounded-lg text-sm"
+                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-stone-900 dark:hover:text-white rounded-lg text-sm"
                       title="Удалить колоду"
                       aria-label="Удалить колоду"
                     >✕</button>
@@ -371,7 +371,7 @@
               <!-- Широкая кнопка «Сменить» под карточкой — как кнопка «Загрузить» у других -->
               <button
                 @click="expandCatalog"
-                class="w-full py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-lg text-sm font-bold transition-all"
+                class="w-full py-2 bg-stone-200 dark:bg-stone-200 hover:bg-stone-300 dark:bg-white/15 dark:hover:bg-white/25 border border-stone-300 dark:border-white/20 rounded-lg text-sm font-bold transition-all"
                 title="Выбрать другую колоду"
               >✎ Сменить колоду</button>
             </div>
@@ -388,14 +388,14 @@
                     type="text"
                     placeholder="Поиск по имени или описанию..."
                     @keydown.esc="deckSearch = ''"
-                    class="w-full pl-3 pr-9 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-500"
+                    class="w-full pl-3 pr-9 py-2 bg-stone-100 dark:bg-white/10 border border-stone-300 dark:border-white/20 rounded-lg text-sm text-white placeholder-stone-400 dark:placeholder-white/40 focus:outline-none focus:border-yellow-500"
                   />
                   <button
                     v-if="deckSearch.length > 0"
                     @click="deckSearch = ''; deckSearchInput?.focus()"
                     aria-label="Очистить поиск"
                     title="Очистить (Esc)"
-                    class="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 rounded"
+                    class="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-stone-500 dark:text-white/50 hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:bg-white/10 rounded"
                     type="button"
                   >✕</button>
                 </div>
@@ -406,7 +406,7 @@
                     @click="deckFilter = f.value"
                     :aria-pressed="deckFilter === f.value"
                     class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                    :class="deckFilter === f.value ? 'bg-yellow-500 text-gray-900' : 'bg-white/15 hover:bg-white/25'"
+                    :class="deckFilter === f.value ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 dark:bg-stone-200 hover:bg-stone-300 dark:bg-white/15 dark:hover:bg-white/25'"
                   >
                     {{ f.label }} ({{ f.count }})
                   </button>
@@ -425,8 +425,8 @@
                   :aria-pressed="deckCategoryFilter === null"
                   class="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border"
                   :class="deckCategoryFilter === null
-                    ? 'bg-white/30 border-white/40'
-                    : 'bg-white/5 hover:bg-white/15 border-white/15 text-white/70'"
+                    ? 'bg-stone-300 dark:bg-white/30 border-stone-400 dark:border-white/40'
+                    : 'bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:bg-white/15 border-stone-200 dark:border-stone-200 dark:border-white/15 text-stone-500 dark:text-white/70'"
                 >
                   Все категории
                 </button>
@@ -456,7 +456,7 @@
                   @click="selectDeck(d.deckId)"
                   :aria-pressed="selectedDeckId === d.deckId"
                   class="relative p-4 rounded-lg transition-all text-left"
-                  :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-white/20 hover:bg-white/30'"
+                  :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30'"
                 >
                   <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ d.name }}</div>
@@ -478,7 +478,7 @@
                     <span
                       class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border"
                       :class="d.kind === 'builtin'
-                        ? (selectedDeckId === d.deckId ? 'bg-gray-900/10 text-gray-700 border-gray-900/20' : 'bg-white/15 text-white/80 border-white/20')
+                        ? (selectedDeckId === d.deckId ? 'bg-gray-900/10 text-gray-700 border-gray-900/20' : 'bg-stone-200 dark:bg-white/15 text-stone-600 dark:text-white/80 border-stone-300 dark:border-white/20')
                         : (selectedDeckId === d.deckId ? 'bg-emerald-700/30 text-emerald-900 border-emerald-700/30' : 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40')"
                       :title="d.kind === 'builtin' ? 'Встроенная колода' : 'Загруженная колода'"
                     >
@@ -487,7 +487,7 @@
                     <span
                       v-if="d.lang"
                       class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border"
-                      :class="selectedDeckId === d.deckId ? 'bg-gray-900/10 text-gray-700 border-gray-900/20' : 'bg-white/15 text-white/80 border-white/20'"
+                      :class="selectedDeckId === d.deckId ? 'bg-gray-900/10 text-gray-700 border-gray-900/20' : 'bg-stone-200 dark:bg-white/15 text-stone-600 dark:text-white/80 border-stone-300 dark:border-white/20'"
                       :title="`Язык колоды: ${d.lang}`"
                     >{{ d.lang.split('_')[0] }}</span>
                   </div>
@@ -498,13 +498,13 @@
                     <div v-if="d.kind === 'custom'" class="flex gap-1">
                       <button
                         @click.stop="handleExportDeck(d.deckId)"
-                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-gray-600 rounded-lg text-sm"
+                        class="w-8 h-8 flex items-center justify-center bg-stone-300 hover:bg-stone-400 dark:bg-gray-700/60 dark:hover:bg-gray-600 rounded-lg text-sm"
                         title="Экспортировать колоду"
                         aria-label="Экспортировать колоду"
                       >↓</button>
                       <button
                         @click.stop="handleDeleteDeck(d.deckId)"
-                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-white rounded-lg text-sm"
+                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-stone-900 dark:hover:text-white rounded-lg text-sm"
                         title="Удалить колоду"
                         aria-label="Удалить колоду"
                       >✕</button>
@@ -528,7 +528,7 @@
             <!-- ── Разделитель + секция «Каталог» (удалённые, ещё не загруженные) ── -->
             <!-- Скрывается при фильтре 'mine' — пользователь явно хочет только локальные -->
             <!-- v5.8: скрывается и после выбора колоды (вместе с верхней секцией) -->
-            <div v-if="deckFilter === 'all' && (!selectedDeckId || isDeckCatalogExpanded)" class="mt-6 pt-4 border-t border-white/10">
+            <div v-if="deckFilter === 'all' && (!selectedDeckId || isDeckCatalogExpanded)" class="mt-6 pt-4 border-t border-stone-200 dark:border-white/10">
               <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
                 <h3 class="text-sm font-bold opacity-60">КАТАЛОГ ({{ filteredRemoteCatalog.length }})</h3>
                 <div class="flex items-center gap-3 text-xs opacity-50">
@@ -540,7 +540,7 @@
                     :disabled="catalogLoading"
                     :title="catalogLoading ? 'Обновление...' : 'Обновить каталог'"
                     :aria-label="catalogLoading ? 'Обновление...' : 'Обновить каталог'"
-                    class="px-3 py-1.5 bg-white/15 hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-bold transition-all border border-white/20"
+                    class="px-3 py-1.5 bg-stone-200 dark:bg-stone-200 hover:bg-stone-300 dark:bg-white/15 dark:hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-bold transition-all border border-stone-300 dark:border-white/20"
                   >
                     {{ catalogLoading ? '⏳' : '↻ Обновить' }}
                   </button>
@@ -552,7 +552,7 @@
               </div>
               <div v-else-if="catalogError && catalog.length === 0" class="text-center py-4 opacity-70 text-sm">
                 ⚠️ Не удалось загрузить каталог: {{ catalogError }}
-                <button @click="refreshCatalog" class="block mx-auto mt-2 text-blue-400 hover:underline text-xs">Повторить</button>
+                <button @click="refreshCatalog" class="block mx-auto mt-2 text-blue-600 hover:underline dark:text-blue-400 text-xs">Повторить</button>
               </div>
               <div v-else-if="filteredRemoteCatalog.length === 0" class="text-center py-4 opacity-70 text-sm">
                 <template v-if="catalog.length === 0">Каталог пуст.</template>
@@ -563,7 +563,7 @@
                 <div
                   v-for="item in filteredRemoteCatalog"
                   :key="item.deckId"
-                  class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 transition-all"
+                  class="bg-stone-100 dark:bg-white/5 hover:bg-stone-100 dark:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg p-4 transition-all"
                 >
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ item.name }}</div>
                   <!-- v5.11: бейджи — Категория первая, затем «В каталоге», затем lang -->
@@ -578,12 +578,12 @@
                       <span>{{ deckCategoryName(item.deckCategory) }}</span>
                     </span>
                     <span
-                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-white/10 text-white/60 border-white/15"
+                      class="text-[10px] px-2 py-0.5 rounded font-bold leading-none border bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-white/60 border-stone-200 dark:border-stone-200 dark:border-white/15"
                       title="Колода из удалённого каталога"
                     >В каталоге</span>
                     <span
                       v-if="item.lang"
-                      class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-white/10 text-white/60 border-white/15"
+                      class="text-[10px] px-2 py-0.5 rounded font-mono leading-none border bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-white/60 border-stone-200 dark:border-stone-200 dark:border-white/15"
                       :title="`Язык колоды: ${item.lang}`"
                     >{{ item.lang.split('_')[0] }}</span>
                   </div>
@@ -603,14 +603,14 @@
 
           <!-- Блок 2: Порядок (виден, disabled пока нет колоды) -->
           <div ref="step2Ref"
-               class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
+               class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="!selectedDeckId ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">2. Выберите порядок вопросов</h2>
 
             <!-- v5.7: компактная плашка с выбранным порядком -->
             <div
               v-if="selectedOrderIndex !== null && !isOrderExpanded"
-              class="bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
+              class="bg-stone-200 dark:bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
             >
               <div class="flex items-center justify-between gap-2 flex-wrap">
                 <div class="flex items-center gap-2">
@@ -620,7 +620,7 @@
                 <button
                   @click="expandOrder"
                   :disabled="!selectedDeckId"
-                  class="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="px-3 py-1.5 bg-stone-200 dark:bg-stone-200 hover:bg-stone-300 dark:bg-white/15 dark:hover:bg-white/25 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Выбрать другой порядок"
                 >✎ Сменить</button>
               </div>
@@ -645,7 +645,7 @@
                   class="p-3 rounded-lg transition-all text-center font-bold disabled:cursor-not-allowed"
                   :class="selectedOrderIndex === index
                     ? 'bg-yellow-500 text-gray-900'
-                    : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
+                    : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   {{ order?.name || '—' }}
                 </button>
@@ -655,14 +655,14 @@
 
           <!-- Блок 3: Роль (виден, disabled пока нет порядка) -->
           <div ref="step3Ref"
-               class="bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
+               class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="selectedOrderIndex === null ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">3. Выберите роль</h2>
 
             <!-- v5.7: компактная плашка с выбранной ролью -->
             <div
               v-if="selectedRole && !isRoleExpanded"
-              class="bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
+              class="bg-stone-200 dark:bg-white/15 border border-yellow-400/30 rounded-lg p-4 mb-4"
             >
               <div class="flex items-center justify-between gap-2 flex-wrap">
                 <div class="flex items-center gap-2">
@@ -675,7 +675,7 @@
                 <button
                   @click="expandRole"
                   :disabled="selectedOrderIndex === null"
-                  class="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="px-3 py-1.5 bg-stone-200 dark:bg-stone-200 hover:bg-stone-300 dark:bg-white/15 dark:hover:bg-white/25 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Выбрать другую роль"
                 >✎ Сменить</button>
               </div>
@@ -694,7 +694,7 @@
                   class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
                   :class="selectedRole === 'reader'
                     ? 'bg-yellow-500 text-gray-900'
-                    : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
+                    : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   <div class="text-2xl mb-2">🗣️</div>
                   <div class="font-bold">Я читаю первым</div>
@@ -707,7 +707,7 @@
                   class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
                   :class="selectedRole === 'listener'
                     ? 'bg-yellow-500 text-gray-900'
-                    : 'bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:hover:bg-white/20'"
+                    : 'bg-stone-200 hover:bg-stone-300 dark:bg-stone-200 dark:bg-white/20 dark:hover:bg-stone-300 dark:bg-white/30 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   <div class="text-2xl mb-2">👂</div>
                   <div class="font-bold">Я слушаю первым</div>
@@ -718,11 +718,11 @@
           </div>
 
           <!-- Блок 4: QR-код (виден, плейсхолдер пока нет роли) -->
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
+          <div class="bg-white dark:bg-stone-100 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
             <h3 class="text-xl font-bold mb-4">Синхронизация с партнёром</h3>
 
             <div v-if="!selectedRole">
-              <div class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg mb-4 opacity-60">
+              <div class="inline-flex items-center justify-center w-48 h-48 bg-stone-100 dark:bg-white/10 rounded-lg mb-4 opacity-60">
                 <span class="text-5xl opacity-50">📷</span>
               </div>
               <p class="text-sm opacity-70">
@@ -743,7 +743,7 @@
               <div v-if="qrDataUrl" class="inline-block bg-white p-3 rounded-lg">
                 <img :src="qrDataUrl" alt="QR-код со ссылкой на сессию" class="w-48 h-48" />
               </div>
-              <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-white/10 rounded-lg">
+              <div v-else class="inline-flex items-center justify-center w-48 h-48 bg-stone-100 dark:bg-white/10 rounded-lg">
                 <span class="text-sm opacity-70">Генерация...</span>
               </div>
               <!-- v5.7: ссылка под QR-кодом простым текстом + компактная иконка копирования рядом -->
@@ -756,7 +756,7 @@
                   class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-yellow-400 transition-all"
                   type="button"
                 >
-                  <span v-if="linkCopiedRef" class="text-emerald-400">✓</span>
+                  <span v-if="linkCopiedRef" class="text-emerald-600 dark:text-emerald-400">✓</span>
                   <span v-else aria-hidden="true">⧉</span>
                 </button>
               </p>
@@ -776,12 +776,12 @@
       </template>
 
       <!-- Footer: версия, коммит, ссылка на GitHub -->
-      <footer class="mt-8 pt-6 border-t border-white/10 text-center text-xs opacity-60">
+      <footer class="mt-8 pt-6 border-t border-stone-200 dark:border-white/10 text-center text-xs opacity-60">
         <div class="flex items-center justify-center gap-3 flex-wrap">
           <span>v{{ appVersion }}</span>
           <span v-if="commitHash" class="font-mono">
             · <a :href="commitUrl" target="_blank" rel="noopener"
-                 class="hover:opacity-100 hover:text-yellow-400 transition-colors"
+                 class="hover:opacity-100 hover:text-amber-600 dark:hover:text-yellow-400 transition-colors"
                  :title="commitDate ? `Коммит от ${formatCommitDate(commitDate)}` : 'Открыть коммит на GitHub'">
               {{ commitHash }}
             </a>
@@ -791,7 +791,7 @@
           <span title="Данные сессий и колод хранятся только на вашем устройстве, в localStorage браузера. На сервер ничего не передаётся.">🔒 Локально</span>
           <span>·</span>
           <a href="https://github.com/r3code/random-coffee" target="_blank" rel="noopener"
-             class="hover:opacity-100 hover:text-yellow-400 transition-colors"
+             class="hover:opacity-100 hover:text-amber-600 dark:hover:text-yellow-400 transition-colors"
              title="Открыть репозиторий на GitHub">
             GitHub ↗
           </a>
@@ -799,7 +799,7 @@
           <!-- v5.15: ссылка «О приложении» — повторно открывает онбординг -->
           <button
             @click="openOnboardingFromFooter"
-            class="hover:opacity-100 hover:text-yellow-400 transition-colors"
+            class="hover:opacity-100 hover:text-amber-600 dark:hover:text-yellow-400 transition-colors"
             title="Показать экран знакомства с приложением">
             ℹ️ О приложении
           </button>

@@ -7,12 +7,12 @@
   <transition name="onboarding-fade">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gradient-to-br from-indigo-900 to-purple-900 text-white"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-50 dark:bg-gradient-to-br dark:from-indigo-900 dark:to-purple-900 text-stone-900 dark:text-white transition-colors"
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
     >
-      <div class="max-w-md w-full max-h-dvh overflow-y-auto bg-white/5 backdrop-blur-md rounded-2xl p-6 sm:p-8 border border-white/10 shadow-2xl">
+      <div class="max-w-md w-full max-h-dvh overflow-y-auto bg-white dark:bg-white/5 backdrop-blur-md rounded-2xl p-6 sm:p-8 border border-stone-200 dark:border-white/10 shadow-2xl transition-colors">
         <!-- Иконка приложения (большая) + название -->
         <div class="text-center mb-6">
           <img
@@ -59,7 +59,7 @@
         <div class="mb-6 space-y-2">
           <div class="flex items-center gap-2 text-sm">
             <span class="text-emerald-400" aria-hidden="true">✓</span>
-            <span class="opacity-90">Без регистрации. Сразу начать.</span>
+            <span class="opacity-90">Без регистрации.</span>
           </div>
           <div class="flex items-center gap-2 text-sm">
             <span class="text-emerald-400" aria-hidden="true">✓</span>

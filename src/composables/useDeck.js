@@ -522,6 +522,13 @@ watch(theme, (t) => {
 })
 
 // ─── Theme ──────────────────────────────────────────────────────
+// v5.16: инвертированная логика тем.
+//   'dark'  → фиолетовый градиент (бывшая 'light') — добавляем класс 'dark' на <html>.
+//   'light' → реально светлая (белый/stone фон, тёмный текст) — убираем класс 'dark'.
+//   'auto'  → по системной prefers-color-scheme.
+// Tailwind darkMode: 'class' → dark: варианты применяются когда есть .dark на <html>.
+// Фиолетовый фон (from-indigo-900 to-purple-900) теперь в dark: вариантах,
+// светлый фон (bg-stone-50) — в default (без dark:).
 let mediaQuery = null
 
 function applyTheme(t) {

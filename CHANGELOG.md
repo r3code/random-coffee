@@ -17,7 +17,25 @@
 - Карточка истории: кнопка «Открыть» показывается всегда (включая активную сессию). Бейдж «● Активна» убран.
 - Карточка игры: кнопка ⊗ вместо 🏠. Полоска категории `absolute top-0` (в самом верху, не сдвигает текст). Текст вопроса центрирован (`pt-6 pb-10`).
 
-## [5.15.1] — 2026-09-28
+## [5.16.0] — 2026-09-29
+
+### Добавлено
+- **Реально светлая тема** — `bg-stone-50` фон, `text-stone-900` тёмный текст, `bg-white` карточки, `border-stone-200` границы. Раньше «светлая» была фиолетовым градиентом (тёмная по сути). Теперь:
+  - `dark` (🌙 Темная) → фиолетовый градиент `from-indigo-900 to-purple-900` + белый текст (бывшая «светлая»)
+  - `light` (☀️ Светлая) → реально светлая `bg-stone-50` + тёмный текст (новая)
+  - `auto` (🔄 Авто) → по системной `prefers-color-scheme`
+- **Порядок переключателя** — «🌙 Темная / ☀️ Светлая / 🔄 Авто» (раньше было «Светлая / Темная / Авто»)
+- **99 Tailwind-классов обновлены** в SetupView.vue — каждый `bg-white/10`, `text-white/70`, `border-white/20` и т.д. получил `dark:` вариант + light-аналог (`bg-stone-100`, `text-stone-500`, `border-stone-300`). Через `scripts/theme-replace.py`.
+- OnboardingScreen.vue — тоже обновлён под две темы.
+
+### Изменено
+- **`applyTheme()`** — логика инвертирована: `dark` → добавляет `.dark` класс (фиолетовая), `light` → убирает `.dark` (светлая). Раньше `light` = без `.dark` (что давало фиолетовый), `dark` = с `.dark` (серый).
+- **Убрана старая серая тема** (`dark:from-gray-900 dark:to-gray-800`) — заменена на фиолетовую.
+- **Footer** — `🔒 Локально` и `ℹ️ О приложении` адаптированы под обе темы.
+- **Текст онбординга** — убрано «Сразу начать» из privacy-блока (осталось «Без регистрации.»).
+- SPEC.md — шапка обновлена до v5.16. §15 — добавлена строка v5.16.0.
+
+## [5.15.2] — 2026-09-28
 
 ### Исправлено
 - **Кнопка «Понятно, начать» не закрывала онбординг** — `showOnboarding` computed зависел только от `seenOnboarding` (флаг localStorage), а `closeOnboarding()` не менял этот флаг. Добавлен локальный ref `onboardingDismissed`, который `closeOnboarding` сбрасывает в `true` — модал закрывается в текущей сессии. При следующем заходе (новая вкладка/перезагрузка) онбординг покажется снова, пока пользователь не нажмёт «Больше не показывать».
@@ -476,8 +494,9 @@
 - Деплой на GitHub Pages (`deploy-pages.yml`) — автоматическая публикация при пуше в main.
 - Vitest-тесты для чистых функций (PRNG, generateOrder) и URL helpers.
 
-[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.15.1...HEAD
-[5.15.1]: https://github.com/r3code/random-coffee/releases/tag/v5.15.1
+[Unreleased]: https://github.com/r3code/random-coffee/compare/v5.16.0...HEAD
+[5.16.0]: https://github.com/r3code/random-coffee/releases/tag/v5.16.0
+[5.15.2]: https://github.com/r3code/random-coffee/releases/tag/v5.15.2
 [5.15.0]: https://github.com/r3code/random-coffee/releases/tag/v5.15.0
 [5.14.0]: https://github.com/r3code/random-coffee/releases/tag/v5.14.0
 [5.13.0]: https://github.com/r3code/random-coffee/releases/tag/v5.13.0
