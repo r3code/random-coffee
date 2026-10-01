@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [5.19.1] — 2026-10-01
+
+### Добавлено
+- **Тесты для `usePlatform.js`** — новый файл `tests/usePlatform.test.js`, 37 тестов (всего теперь 179). Покрытие:
+  - OS detection: iOS (iPhone/iPad/iPadOS-touch), Android, Mac, Windows, Linux.
+  - Browser detection: iOS Safari, iOS Chrome/Edge/Firefox, Android Chrome/Firefox/Edge/Samsung, Desktop Chrome/Edge/Firefox/Safari.
+  - isStandalone: через `navigator.standalone` (iOS) и `window.matchMedia('(display-mode: standalone)')`.
+  - canPromptInstall: true для Desktop Chrome/Edge и Android Chrome/Edge; false для iOS/Firefox/Safari и standalone-режима.
+  - OS flags: `isIOS`, `isAndroid`, `isDesktop` — взаимоисключающие.
+  - Возвращаемые computed-ы имеют `.value` и консистентны между вызовами.
+  - Использованы реальные UA-строки разных браузеров для реалистичности.
+- Паттерн тестирования: `Object.defineProperty(navigator, ...)` для подмены UA/platform/maxTouchPoints/standalone + `vi.resetModules()` + динамический `import('@/composables/usePlatform?t=N')` для пересоздания модуля.
+
+### Исправлено
+- **usePlatform.js — Desktop Edge детектировался как Chrome** (баг в коде, выявленный тестами). Regex `!/Edge\//.test(ua)` искал `Edge/` (со слэшем), но реальные UA содержат `Edg/` (Edge на Chromium). Исправлено на `!/Edg/.test(ua)`.
+- **usePlatform.js — Android Edge детектировался как Chrome** (баг в коде). `isAndroidChrome` проверялся ПЕРВЫМ и матчил `Chrome/` в UA Edge (т.к. Edge на Android тоже Chromium). Изменён порядок проверок: теперь `isAndroidEdge` идёт перед `isAndroidChrome`. Samsung Internet по-прежнему классифицируется как `android-chrome` (Chromium-based) — это известное ограничение, отмеченное в тестах.
+
 ## [5.19.0] — 2026-10-01
 
 ### Добавлено

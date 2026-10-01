@@ -38,13 +38,16 @@ function detect() {
   const isIOSFirefox = /FxiOS/.test(ua)
   const isIOSSafari = isIOS && !isIOSChrome && !isIOSEdge && !isIOSFirefox && /Safari/.test(ua)
 
-  // Android — различаем Chrome, Firefox (вкл. Nightly/Fennec), и Other
+  // Android — различаем Chrome, Firefox (вкл. Nightly/Fennec), Edge, и Other.
+  // ВАЖНО: порядок проверок — Firefox/Edge ПЕРЕД Chrome, т.к. Edge/Brave/Samsung
+  // на Chromium тоже содержат "Chrome/" в UA, но мы хотим определить их как
+  // отдельные браузеры (для платформо-специфичных инструкций).
   const isAndroidFirefox = isAndroid && /Firefox|FxiOS/.test(ua)
-  const isAndroidChrome = isAndroid && !isAndroidFirefox && /Chrome|CriOS/.test(ua)
-  const isAndroidEdge = isAndroid && !isAndroidFirefox && !isAndroidChrome && /Edg/.test(ua)
+  const isAndroidEdge = isAndroid && !isAndroidFirefox && /Edg/.test(ua)
+  const isAndroidChrome = isAndroid && !isAndroidFirefox && !isAndroidEdge && /Chrome|CriOS/.test(ua)
 
-  // Desktop Chrome (вкл. Edge на Chromium)
-  const isDesktopChrome = !isIOS && !isAndroid && /Chrome|Chromium/.test(ua) && !/Edge\//.test(ua)
+  // Desktop Chrome (НЕ Edge на Chromium — у Edge есть "Edg/" в UA)
+  const isDesktopChrome = !isIOS && !isAndroid && /Chrome|Chromium/.test(ua) && !/Edg/.test(ua)
   const isDesktopEdge = !isIOS && !isAndroid && /Edg/.test(ua)
   const isDesktopFirefox = !isIOS && !isAndroid && /Firefox/.test(ua)
   const isDesktopSafari = !isIOS && !isAndroid && /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)
