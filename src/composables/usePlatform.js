@@ -38,6 +38,11 @@ function detect() {
   const isIOSFirefox = /FxiOS/.test(ua)
   const isIOSSafari = isIOS && !isIOSChrome && !isIOSEdge && !isIOSFirefox && /Safari/.test(ua)
 
+  // Android — различаем Chrome, Firefox (вкл. Nightly/Fennec), и Other
+  const isAndroidFirefox = isAndroid && /Firefox|FxiOS/.test(ua)
+  const isAndroidChrome = isAndroid && !isAndroidFirefox && /Chrome|CriOS/.test(ua)
+  const isAndroidEdge = isAndroid && !isAndroidFirefox && !isAndroidChrome && /Edg/.test(ua)
+
   // Desktop Chrome (вкл. Edge на Chromium)
   const isDesktopChrome = !isIOS && !isAndroid && /Chrome|Chromium/.test(ua) && !/Edge\//.test(ua)
   const isDesktopEdge = !isIOS && !isAndroid && /Edg/.test(ua)
@@ -56,6 +61,10 @@ function detect() {
   let browser = 'unknown'
   if (isIOSSafari) browser = 'ios-safari'
   else if (isIOSChrome || isIOSEdge || isIOSFirefox) browser = 'ios-other'
+  else if (isAndroidFirefox) browser = 'android-firefox'
+  else if (isAndroidChrome) browser = 'android-chrome'
+  else if (isAndroidEdge) browser = 'android-edge'
+  else if (isAndroid) browser = 'android-other'
   else if (isDesktopChrome) browser = 'chrome'
   else if (isDesktopEdge) browser = 'edge'
   else if (isDesktopFirefox) browser = 'firefox'
@@ -83,11 +92,17 @@ export function usePlatform() {
   const isIOSSafari = computed(() => detected.browser === 'ios-safari')
   const isIOSOther = computed(() => detected.browser === 'ios-other')
 
+  // Android — детальные флаги браузеров для platform-specific инструкций
+  const isAndroidFirefox = computed(() => detected.browser === 'android-firefox')
+  const isAndroidChrome = computed(() => detected.browser === 'android-chrome')
+  const isAndroidEdge = computed(() => detected.browser === 'android-edge')
+  const isAndroidOther = computed(() => detected.browser === 'android-other')
+
   // Поддерживает beforeinstallprompt (нативный диалог установки)?
-  // Только desktop Chrome/Edge и Android Chrome. iOS и Firefox — нет.
+  // Только desktop Chrome/Edge и Android Chrome/Edge. iOS и Firefox — нет.
   const canPromptInstall = computed(() => {
     if (detected.isStandalone) return false
-    return ['chrome', 'edge'].includes(detected.browser) || (detected.os === 'android' && ['chrome', 'edge'].includes(detected.browser))
+    return ['chrome', 'edge', 'android-chrome', 'android-edge'].includes(detected.browser)
   })
 
   return {
@@ -99,6 +114,10 @@ export function usePlatform() {
     isDesktop,
     isIOSSafari,
     isIOSOther,
+    isAndroidFirefox,
+    isAndroidChrome,
+    isAndroidEdge,
+    isAndroidOther,
     canPromptInstall,
   }
 }

@@ -46,7 +46,7 @@
         <div class="flex gap-2 mt-3">
           <button
             @click="install"
-            class="flex-1 py-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg font-bold text-sm transition-colors"
+            class="flex-1 py-2 bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900 rounded-lg font-bold text-sm transition-colors"
           >
             Установить
           </button>

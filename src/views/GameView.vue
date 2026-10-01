@@ -175,8 +175,8 @@
         @click="handleNext"
         class="w-full py-5 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95"
         :class="amIReading
-          ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900'
-          : 'bg-emerald-500 hover:bg-emerald-400 text-white'"
+          ? 'bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900'
+          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white'"
       >
         {{ amIReading ? 'Партнёр ответил ➔' : 'Я ответил ➔' }}
       </button>
@@ -258,13 +258,13 @@ function deckCategoryInfoForUI(slug) {
 // v5.3: класс для ячейки шкалы прогресса
 function getProgressCellClass(qid, index) {
   if (passedIds.value.includes(qid)) {
-    return 'bg-emerald-500'  // отвечен
+    return 'bg-emerald-400 dark:bg-emerald-500'  // отвечен
   }
   if (skippedIds.value.includes(qid) && !passedIds.value.includes(qid)) {
-    return 'bg-orange-500'   // пропущен
+    return 'bg-orange-400 dark:bg-orange-500'   // пропущен
   }
   if (index === currentTurn.value) {
-    return 'bg-yellow-500 ring-1 ring-yellow-300'  // текущий
+    return 'bg-amber-300 ring-1 ring-amber-200 dark:bg-yellow-500 dark:ring-yellow-300'  // текущий
   }
   return 'bg-white/10'  // будущий
 }

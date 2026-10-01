@@ -7,6 +7,37 @@
 
 ## [Unreleased]
 
+## [5.19.0] — 2026-10-01
+
+### Добавлено
+- **3 ветки Android в OnboardingScreen** — теперь инструкция установки различает:
+  - **Android Chrome**: «Меню Chrome (⋮ справа вверху) → Установить приложение»
+  - **Android Firefox (вкл. Nightly/Fennec)**: «Меню Firefox (⋮) → Больше → Добавить на главный экран»
+  - **Android Edge**: «Меню Edge (⋯ снизу) → Добавить на телефон»
+  - **Android Other** (Samsung Internet, Brave, и т.д.): «Открой меню браузера (⋮) → найди «Добавить на главный экран» или «Установить приложение»»
+  Раньше всем Android-браузерам показывалась инструкция для Chrome.
+- **Accordion-блоки в OnboardingScreen** — «Как это работает» и «Установить как приложение» теперь нативные `<details>` (доступны для раскрытия/сворачивания). Smart defaults:
+  - При первом онбординге — оба блока раскрыты.
+  - При клике «📱 Установить» из footer — install-блок раскрыт, howItWorks свёрнут, авто-скролл к install-блоку.
+  - При клике «ℹ️ О приложении» — оба раскрыты (поведение как при первом онбординге).
+- **Prop `focusInstall`** в OnboardingScreen — управляет defaults accordion + триггерит скролл.
+
+### Изменено
+- **Пастельный amber в светлой теме** (вместо насыщенного `bg-yellow-500`) — все 12 жёлтых акцентов:
+  - Активные toggle-кнопки (тема, фильтр, порядок, роль, колода): `bg-amber-200 text-amber-900` в light + `dark:bg-yellow-500 dark:text-gray-900`.
+  - Primary CTA («Начать сессию ➔», «Начать новую сессию», «Понятно, начать»): `bg-amber-300 hover:bg-amber-400 text-amber-900` в light + тёмный как раньше.
+  - Карточка «Продолжить сессию?»: `bg-amber-50 border-amber-200` (мягкий pastel) в light + `dark:bg-yellow-500` в dark.
+  - Шаги 1/2/3 в онбординге: `bg-amber-300 text-amber-900` + `dark:bg-yellow-500 dark:text-gray-900`.
+  - Кнопка «Установить» в InstallPrompt баннере: `bg-amber-300` в light.
+  - Текущий ход в GameView (progress cell): `bg-amber-300 ring-amber-200` + `dark:bg-yellow-500 dark:ring-yellow-300`.
+  - Hover на «Копировать ссылку» (⧉): `hover:text-amber-500` + `dark:hover:text-yellow-400`.
+  - Активная сессия в истории (ring): `ring-amber-300` + `dark:ring-yellow-500`.
+  - Кнопка «Партнёр ответил»/«Я ответил» в GameView: `bg-amber-300 text-amber-900` в light + `dark:bg-yellow-500 dark:text-gray-900`. Кнопка «Я ответил» теперь пастельная `bg-emerald-100 text-emerald-700` в light (раньше была насыщенная `bg-emerald-500`).
+  - Progress cells (отвечен/пропущен): `bg-emerald-400`/`bg-orange-400` в light + `dark:bg-emerald-500`/`dark:bg-orange-500` (немного мягче, чем `-500`).
+  - Privacy ✓ в OnboardingScreen: `text-emerald-500` в light + `dark:text-emerald-400` (раньше всегда `text-emerald-400`, на светлом фоне почти невидим).
+- **Цвет markers** в шагах 2 OnboardingScreen (•) — `text-amber-600` в light + `dark:text-yellow-400` (раньше всегда `text-yellow-400`).
+- **usePlatform.js** — добавлены `isAndroidFirefox`, `isAndroidChrome`, `isAndroidEdge`, `isAndroidOther` computed refs. Обновлён `canPromptInstall` — теперь учитывает `android-chrome`/`android-edge` явно.
+
 ## [5.18.0] — 2026-10-01
 
 ### Добавлено

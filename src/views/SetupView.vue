@@ -1,10 +1,11 @@
 <template>
   <div class="min-h-dvh bg-stone-50 dark:bg-gradient-to-br dark:from-indigo-900 dark:to-purple-900 text-stone-900 dark:text-white p-6 transition-colors"
        style="padding-bottom: env(safe-area-inset-bottom);">
-    <!-- v5.15: OnboardingScreen — показывается при первом заходе (auto) или через «ℹ️ О приложении» -->
+    <!-- v5.15: OnboardingScreen — показывается при первом заходе (auto) или через «ℹ️ О приложении» / «📱 Установить» -->
     <OnboardingScreen
       :visible="showOnboarding || showOnboardingFromFooter"
       :from-footer="showOnboardingFromFooter"
+      :focus-install="onboardingFocusInstall"
       @close="closeOnboarding"
       @dismiss="dismissOnboarding"
     />
@@ -30,7 +31,7 @@
           @click="setTheme(t)"
           :aria-pressed="theme === t"
           class="px-4 py-2 rounded-lg transition-all"
-          :class="theme === t ? 'bg-yellow-500 text-gray-900' : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15'"
+          :class="theme === t ? 'bg-amber-200 text-amber-900 dark:bg-yellow-500 dark:text-gray-900' : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15'"
         >
           {{ t === 'light' ? '☀️ Светлая' : t === 'dark' ? '🌙 Темная' : '🔄 Авто' }}
         </button>
@@ -50,11 +51,11 @@
                  вызывает continueSession. Кнопка визуально подчёркнута как зона действия. -->
             <button
               @click="continueSession"
-              class="w-full text-left rounded-xl overflow-hidden mb-4 transition-all hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              class="w-full text-left rounded-xl overflow-hidden mb-4 transition-all hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-amber-400 dark:focus:ring-yellow-400"
               :aria-label="`Продолжить сессию: ${savedDeckName}, порядок ${savedOrderName}`"
             >
               <!-- Карточка колоды — жёлтый фон, как у выбранной -->
-              <div class="relative p-4 bg-yellow-500 text-gray-900">
+              <div class="relative p-4 bg-amber-50 border border-amber-200 dark:bg-yellow-500 dark:border-transparent text-amber-900 dark:text-gray-900">
                 <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ savedDeckName }}</div>
                 <!-- v5.11: бейджи — Категория первая, затем тип, затем lang -->
                 <div class="flex items-center gap-1 mb-2 flex-wrap">
@@ -121,7 +122,7 @@
                   @click="handleCopyContinueLink"
                   :aria-label="continueLinkCopied ? 'Ссылка скопирована' : 'Копировать ссылку'"
                   :title="continueLinkCopied ? 'Скопировано!' : 'Копировать ссылку'"
-                  class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-yellow-400 transition-all"
+                  class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-amber-500 dark:hover:text-yellow-400 transition-all"
                   type="button"
                 >
                   <span v-if="continueLinkCopied" class="text-emerald-600 dark:text-emerald-400">✓</span>
@@ -135,7 +136,7 @@
         <!-- Нет активной сессии: большая кнопка "Начать новую" -->
         <div v-else class="mb-8 text-center">
           <button @click="enterNewForm"
-                  class="w-full py-5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95">
+                  class="w-full py-5 bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95">
             ➕ Начать новую сессию
           </button>
         </div>
@@ -157,7 +158,7 @@
                 :key="s.id"
                 class="bg-stone-100 dark:bg-white/10 rounded-lg p-4 transition-all"
                 :class="[
-                  s.id === activeSessionId ? 'ring-2 ring-yellow-500' : '',
+                  s.id === activeSessionId ? 'ring-2 ring-amber-300 dark:ring-yellow-500' : '',
                   highlightedSessionId === s.id ? 'ring-2 ring-emerald-400 bg-emerald-500/20' : ''
                 ]"
               >
@@ -311,7 +312,7 @@
             <!-- v5.8: компактная плашка заменена на полную карточку колоды + широкая кнопка «Сменить» -->
             <div v-if="selectedDeckId && !isDeckCatalogExpanded">
               <div
-                class="relative p-4 rounded-lg bg-yellow-500 text-gray-900 mb-4"
+                class="relative p-4 rounded-lg bg-amber-50 border border-amber-200 dark:bg-yellow-500 dark:border-transparent text-amber-900 dark:text-gray-900 mb-4"
               >
                 <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                 <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ selectedDeck?.name }}</div>
@@ -406,7 +407,7 @@
                     @click="deckFilter = f.value"
                     :aria-pressed="deckFilter === f.value"
                     class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                    :class="deckFilter === f.value ? 'bg-yellow-500 text-gray-900' : 'bg-stone-200 dark:bg-white/15 hover:bg-stone-300 dark:hover:bg-white/25'"
+                    :class="deckFilter === f.value ? 'bg-amber-200 text-amber-900 dark:bg-yellow-500 dark:text-gray-900' : 'bg-stone-200 dark:bg-white/15 hover:bg-stone-300 dark:hover:bg-white/25'"
                   >
                     {{ f.label }} ({{ f.count }})
                   </button>
@@ -458,7 +459,7 @@
                   @click="selectDeck(d.deckId)"
                   :aria-pressed="selectedDeckId === d.deckId"
                   class="relative p-4 rounded-lg transition-all text-left"
-                  :class="selectedDeckId === d.deckId ? 'bg-yellow-500 text-gray-900' : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15'"
+                  :class="selectedDeckId === d.deckId ? 'bg-amber-200 text-amber-900 dark:bg-yellow-500 dark:text-gray-900' : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15'"
                 >
                   <!-- Имя — отдельная строка, всегда видно целиком (до 2 строк) -->
                   <div class="font-bold text-lg leading-tight mb-2 line-clamp-2">{{ d.name }}</div>
@@ -646,7 +647,7 @@
                   :aria-label="`Порядок ${order?.name || '?'}`"
                   class="p-3 rounded-lg transition-all text-center font-bold disabled:cursor-not-allowed"
                   :class="selectedOrderIndex === index
-                    ? 'bg-yellow-500 text-gray-900'
+                    ? 'bg-amber-200 text-amber-900 dark:bg-yellow-500 dark:text-gray-900'
                     : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   {{ order?.name || '—' }}
@@ -695,7 +696,7 @@
                   :aria-pressed="selectedRole === 'reader'"
                   class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
                   :class="selectedRole === 'reader'
-                    ? 'bg-yellow-500 text-gray-900'
+                    ? 'bg-amber-200 text-amber-900 dark:bg-yellow-500 dark:text-gray-900'
                     : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   <div class="text-2xl mb-2">🗣️</div>
@@ -708,7 +709,7 @@
                   :aria-pressed="selectedRole === 'listener'"
                   class="p-4 rounded-lg transition-all disabled:cursor-not-allowed"
                   :class="selectedRole === 'listener'
-                    ? 'bg-yellow-500 text-gray-900'
+                    ? 'bg-amber-200 text-amber-900 dark:bg-yellow-500 dark:text-gray-900'
                     : 'bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 disabled:opacity-50 disabled:hover:bg-stone-200 dark:bg-white/20'"
                 >
                   <div class="text-2xl mb-2">👂</div>
@@ -755,7 +756,7 @@
                   @click="handleCopyLink"
                   :aria-label="linkCopiedRef ? 'Ссылка скопирована' : 'Копировать ссылку'"
                   :title="linkCopiedRef ? 'Скопировано!' : 'Копировать ссылку'"
-                  class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-yellow-400 transition-all"
+                  class="ml-1 align-middle inline-flex items-center justify-center w-7 h-7 -translate-y-px text-base leading-none opacity-70 hover:opacity-100 hover:text-amber-500 dark:hover:text-yellow-400 transition-all"
                   type="button"
                 >
                   <span v-if="linkCopiedRef" class="text-emerald-600 dark:text-emerald-400">✓</span>
@@ -770,7 +771,7 @@
             ref="startButtonRef"
             @click="startGame"
             :disabled="!selectedRole"
-            class="w-full py-5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-yellow-500 scroll-mt-4"
+            class="w-full py-5 bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-300 dark:disabled:hover:bg-yellow-500 scroll-mt-4"
           >
             Начать сессию ➔
           </button>
@@ -885,6 +886,8 @@ const {
 const onboardingDismissed = ref(false)
 const showOnboarding = computed(() => !seenOnboarding.value && !onboardingDismissed.value && !shareParams.value)
 const showOnboardingFromFooter = ref(false)
+// v5.19: при открытии через «📱 Установить» — true (focusInstall)
+const onboardingFocusInstall = ref(false)
 
 function closeOnboarding() {
   // «Понятно, начать» — закрывает модал в текущей сессии, но НЕ ставит флаг.
@@ -892,6 +895,7 @@ function closeOnboarding() {
   // пока пользователь не нажмёт «Больше не показывать».
   onboardingDismissed.value = true
   showOnboardingFromFooter.value = false
+  onboardingFocusInstall.value = false
 }
 
 function dismissOnboarding() {
@@ -899,18 +903,21 @@ function dismissOnboarding() {
   markOnboardingSeen()
   onboardingDismissed.value = true
   showOnboardingFromFooter.value = false
+  onboardingFocusInstall.value = false
 }
 
 function openOnboardingFromFooter() {
   // ℹ️ О приложении — повторный показ онбординга (флаг не сбрасываем).
   // onboardingDismissed тоже не трогаем — после закрытия через «Понятно»
   // пользователь должен снова иметь возможность открыть через «ℹ️ О приложении».
+  onboardingFocusInstall.value = false
   showOnboardingFromFooter.value = true
 }
 
-// v5.18: кнопка «📱 Установить» в footer — открывает онбординг, где будет блок
-// установки с platform-specific инструкцией. Тот же механизм, что и «ℹ️ О приложении».
+// v5.18/v5.19: кнопка «📱 Установить» в footer — открывает онбординг с фокусом на
+// install-блоке: install раскрыт, howItWorks свёрнут, авто-скролл к нему.
 function openInstallGuideFromFooter() {
+  onboardingFocusInstall.value = true
   showOnboardingFromFooter.value = true
 }
 
