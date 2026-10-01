@@ -176,7 +176,7 @@
         class="w-full py-5 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95"
         :class="amIReading
           ? 'bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900'
-          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white'"
+          : 'bg-emerald-500 hover:bg-emerald-400 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400'"
       >
         {{ amIReading ? 'Партнёр ответил ➔' : 'Я ответил ➔' }}
       </button>

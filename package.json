@@ -1,7 +1,7 @@
 {
   "name": "random-coffee-cards",
   "private": true,
-  "version": "5.19.1",
+  "version": "5.19.2",
   "type": "module",
   "description": "PWA карточки вопросов для глубоких парных бесед",
   "scripts": {
