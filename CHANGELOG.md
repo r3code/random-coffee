@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [5.18.0] — 2026-10-01
+
+### Добавлено
+- **Composable `usePlatform.js`** — определение ОС (iOS/Android/Mac/Windows/Linux) и браузера (Safari/Chrome/Edge/Firefox) через UA + `navigator.platform`. Возвращает `isStandalone`, `isIOS`, `isAndroid`, `isIOSSafari`, `isIOSOther`, `canPromptInstall`. Используется в онбординге и footer SetupView.
+- **Блок «Установить как приложение» в OnboardingScreen** — platform-specific инструкция для iOS Safari («Поделиться → На экран Домой»), iOS Chrome/Edge/Firefox («Открой в Safari»), Android («Меню Chrome ⋮ → Установить»), Desktop Chrome/Edge («иконка ⊕ в адресной строке»), Firefox («☰ → Установить»), Safari macOS («⌘+Share → На экран Домой/Dock»). Блок скрыт, если уже в standalone-режиме.
+- **Кнопка «📱 Установить» в footer SetupView** — открывает онбординг с блоком установки. Скрыта, если PWA уже запущено standalone.
+- **Кнопка закрытия в GameView** — заменён Unicode-символ `⊗` на SVG-крестик с обводкой: видимый border-круг (1px), крест не касается окружности (зазор ~6px), 44px под палец, с light/dark адаптацией.
+
+### Изменено
+- **9 цветных action-кнопок в SetupView** (Загрузить, Открыть, Импорт, Бэкап, Восстановить, Сменить, ✓ Сохранить, ↻ Снова) — переведены с одноцветной заливки `bg-{color}-500` на пастельный паттерн в light теме: `bg-{color}-100 text-{color}-700 hover:bg-{color}-200` + сохранён насыщенный `dark:bg-{color}-500 dark:text-white` для тёмной. Убран «вырвиглазный» эффект ярких кнопок на светлом фоне.
+- **Утилитарные иконки** (✕ Удалить, 🔄 Обновить) — добавлен light-вариант `bg-stone-300 dark:bg-gray-700/60` (раньше был только dark). Hover при удалении: `bg-red-500 text-white` в обеих темах (semantic danger).
+
 ## [5.17.0] — 2026-09-30
 
 ### Добавлено

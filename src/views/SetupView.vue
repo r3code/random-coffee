@@ -85,8 +85,8 @@
                   Вопрос {{ (savedTurn ?? 0) + 1 }} из {{ savedTotalQuestions }}
                 </div>
               </div>
-              <!-- Зелёная полоса-кнопка Продолжить — продолжение карточки, явный CTA -->
-              <div class="bg-green-500 hover:bg-green-400 text-white text-center font-bold py-3 px-4 flex items-center justify-center gap-2">
+              <!-- Зелёная полоса-кнопка Продолжить — продолжение карточки, явный CTA. Пастельный тон в light, насыщенный в dark. -->
+              <div class="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white text-center font-bold py-3 px-4 flex items-center justify-center gap-2 transition-colors">
                 <span>Продолжить</span>
                 <span aria-hidden="true">→</span>
               </div>
@@ -193,14 +193,14 @@
                   <button
                     v-if="!isSessionFinished(s)"
                     @click="openSession(s.id)"
-                    class="px-3 py-2 bg-green-500 hover:bg-green-400 rounded-lg text-sm font-bold"
+                    class="px-3 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white rounded-lg text-sm font-bold transition-colors"
                   >
                     Открыть
                   </button>
                   <button
                     v-else
                     @click="restartCompletedSession(s)"
-                    class="px-3 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg text-sm font-bold"
+                    class="px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-white rounded-lg text-sm font-bold transition-colors"
                     title="Начать новую сессию с этими же параметрами"
                     aria-label="Начать новую сессию с теми же параметрами"
                   >
@@ -228,7 +228,7 @@
                     </button>
                     <button
                       @click="confirmDeleteSession(s.id)"
-                      class="w-9 h-9 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-stone-900 dark:hover:text-white text-gray-300 rounded-lg text-base font-bold leading-none transition-colors"
+                      class="w-9 h-9 flex items-center justify-center bg-stone-300 hover:bg-red-500 hover:text-white dark:bg-gray-700/60 dark:hover:bg-red-500 dark:hover:text-white text-stone-700 dark:text-gray-300 rounded-lg text-base font-bold leading-none transition-colors"
                       title="Удалить сессию"
                       aria-label="Удалить сессию"
                     >
@@ -253,7 +253,7 @@
                   />
                   <button
                     @click="saveRename"
-                    class="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-bold"
+                    class="px-3 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white rounded-lg text-sm font-bold transition-colors"
                     title="Сохранить"
                     aria-label="Сохранить имя"
                   >
@@ -273,16 +273,16 @@
 
             <!-- Импорт сессии + бэкап — внизу блока истории -->
             <div class="mt-4 pt-4 border-t border-stone-200 dark:border-white/10 space-y-3">
-              <label class="block w-full py-3 bg-purple-500 hover:bg-purple-400 rounded-lg font-bold text-center cursor-pointer">
+              <label class="block w-full py-3 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-500 dark:hover:bg-purple-400 dark:text-white rounded-lg font-bold text-center cursor-pointer transition-colors">
                 📥 Импорт сессии из файла
                 <input type="file" accept=".json" @change="handleImport" class="hidden" />
               </label>
               <!-- v5.1: Полный бэкап -->
               <div class="flex gap-3">
-                <button @click="handleExportBackup" class="flex-1 py-3 bg-blue-500 hover:bg-blue-400 rounded-lg font-bold text-sm">
+                <button @click="handleExportBackup" class="flex-1 py-3 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-white rounded-lg font-bold text-sm transition-colors">
                   💾 Бэкап
                 </button>
-                <label class="flex-1 py-3 bg-teal-500 hover:bg-teal-400 rounded-lg font-bold text-sm text-center cursor-pointer">
+                <label class="flex-1 py-3 bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-500 dark:hover:bg-teal-400 dark:text-white rounded-lg font-bold text-sm text-center cursor-pointer transition-colors">
                   📂 Восстановить
                   <input type="file" accept=".json" @change="handleImportBackup" class="hidden" />
                 </label>
@@ -354,14 +354,14 @@
                     >↓</button>
                     <button
                       @click="handleDeleteDeck(selectedDeckId)"
-                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-stone-900 dark:hover:text-white rounded-lg text-sm"
+                      class="w-8 h-8 flex items-center justify-center bg-stone-300 hover:bg-red-500 hover:text-white dark:bg-gray-700/60 dark:hover:bg-red-500 dark:hover:text-white text-stone-700 dark:text-gray-300 rounded-lg text-sm transition-colors"
                       title="Удалить колоду"
                       aria-label="Удалить колоду"
                     >✕</button>
                     <button
                       v-if="selectedDeck?.source"
                       @click="handleCheckUpdates(selectedDeckId)"
-                      class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-blue-500 rounded-lg text-sm"
+                      class="w-8 h-8 flex items-center justify-center bg-stone-300 hover:bg-blue-500 hover:text-white dark:bg-gray-700/60 dark:hover:bg-blue-500 dark:hover:text-white text-stone-700 dark:text-gray-300 rounded-lg text-sm transition-colors"
                       title="Проверить обновления"
                       aria-label="Проверить обновления"
                     >🔄</button>
@@ -446,7 +446,7 @@
               <div>
                 <h3 class="text-sm font-bold opacity-60 mb-3 flex items-center justify-between">
                   <span>МОИ КОЛОДЫ</span>
-                  <label class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1" title="Импортировать колоду из .json файла">
+                  <label class="px-3 py-1.5 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-500 dark:hover:bg-purple-400 dark:text-white rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1 transition-colors" title="Импортировать колоду из .json файла">
                     📥 Импорт из файла
                     <input type="file" accept=".json" @change="handleImportDeck" class="hidden" />
                   </label>
@@ -506,14 +506,14 @@
                       >↓</button>
                       <button
                         @click.stop="handleDeleteDeck(d.deckId)"
-                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-red-500 hover:text-stone-900 dark:hover:text-white rounded-lg text-sm"
+                        class="w-8 h-8 flex items-center justify-center bg-stone-300 hover:bg-red-500 hover:text-white dark:bg-gray-700/60 dark:hover:bg-red-500 dark:hover:text-white text-stone-700 dark:text-gray-300 rounded-lg text-sm transition-colors"
                         title="Удалить колоду"
                         aria-label="Удалить колоду"
                       >✕</button>
                       <button
                         v-if="d.source"
                         @click.stop="handleCheckUpdates(d.deckId)"
-                        class="w-8 h-8 flex items-center justify-center bg-gray-700/60 hover:bg-blue-500 rounded-lg text-sm"
+                        class="w-8 h-8 flex items-center justify-center bg-stone-300 hover:bg-blue-500 hover:text-white dark:bg-gray-700/60 dark:hover:bg-blue-500 dark:hover:text-white text-stone-700 dark:text-gray-300 rounded-lg text-sm transition-colors"
                         title="Проверить обновления"
                         aria-label="Проверить обновления"
                       >🔄</button>
@@ -594,7 +594,7 @@
                   <button
                     @click="handleLoadFromCatalog(item)"
                     :disabled="catalogLoadingDeck === item.deckId"
-                    class="w-full py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-bold"
+                    class="w-full py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-100 dark:disabled:hover:bg-emerald-500 rounded-lg text-sm font-bold transition-colors"
                   >
                     {{ catalogLoadingDeck === item.deckId ? '⏳ Загрузка...' : 'Загрузить' }}
                   </button>
@@ -805,6 +805,16 @@
             title="Показать экран знакомства с приложением">
             ℹ️ О приложении
           </button>
+          <span>·</span>
+          <!-- v5.18: кнопка «Установить» — открывает онбординг (там блок установки по платформе) -->
+          <button
+            v-if="!isStandalone"
+            @click="openInstallGuideFromFooter"
+            class="hover:opacity-100 hover:text-amber-600 dark:hover:text-yellow-400 transition-colors"
+            title="Как установить приложение на это устройство">
+            📱 Установить
+          </button>
+          <span v-if="!isStandalone">·</span>
         </div>
       </footer>
     </div>
@@ -816,6 +826,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode'
 import { useDeck, buildShareUrl, parseShareUrl } from '@/composables/useDeck'
+import { usePlatform } from '@/composables/usePlatform'
 import OnboardingScreen from '@/components/OnboardingScreen.vue'
 
 // ─── Версия приложения и git-коммит (инжектируются через vite.config.js define) ──
@@ -896,6 +907,15 @@ function openOnboardingFromFooter() {
   // пользователь должен снова иметь возможность открыть через «ℹ️ О приложении».
   showOnboardingFromFooter.value = true
 }
+
+// v5.18: кнопка «📱 Установить» в footer — открывает онбординг, где будет блок
+// установки с platform-specific инструкцией. Тот же механизм, что и «ℹ️ О приложении».
+function openInstallGuideFromFooter() {
+  showOnboardingFromFooter.value = true
+}
+
+// v5.18: usePlatform — для скрытия кнопки «📱 Установить», если PWA уже в standalone-режиме.
+const { isStandalone } = usePlatform()
 
 // Пустой массив порядков для отображения 10 disabled-кнопок до выбора колоды
 const emptyOrders = Array.from({ length: 10 }, (_, i) => ({

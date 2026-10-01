@@ -71,6 +71,41 @@
           </div>
         </div>
 
+        <!-- Установить как приложение — platform-specific инструкция -->
+        <div v-if="!isStandalone" class="mb-6">
+          <h2 class="text-sm font-bold opacity-60 mb-3 uppercase tracking-wide">Установить как приложение</h2>
+          <div class="text-sm space-y-2 opacity-90">
+            <!-- iOS Safari -->
+            <div v-if="isIOSSafari">
+              <p>Нажми <strong class="text-yellow-400">Поделиться</strong> внизу Safari, затем «На экран Домой».</p>
+            </div>
+            <!-- iOS Chrome/Edge/Firefox — не поддерживают, предложим открыть в Safari -->
+            <div v-else-if="isIOSOther">
+              <p>На iPhone установку поддерживает только Safari. Открой этот сайт в Safari → «Поделиться» → «На экран Домой».</p>
+            </div>
+            <!-- Android Chrome/Edge -->
+            <div v-else-if="isAndroid">
+              <p>Меню Chrome (⋮ справа вверху) → «Установить приложение».</p>
+            </div>
+            <!-- Desktop Chrome/Edge -->
+            <div v-else-if="browser === 'chrome' || browser === 'edge'">
+              <p>Нажми иконку <strong class="text-yellow-400">⊕ установки</strong> в адресной строке справа или меню браузера → «Установить Random Coffee».</p>
+            </div>
+            <!-- Desktop Firefox -->
+            <div v-else-if="browser === 'firefox'">
+              <p>Меню Firefox (☰ справа) → «Установить» или перетащи URL на рабочий стол.</p>
+            </div>
+            <!-- Desktop Safari (macOS) -->
+            <div v-else-if="browser === 'safari'">
+              <p>Поделись <strong class="text-yellow-400">⌘ + Share</strong> → «Добавить на экран Домой» или Dock.</p>
+            </div>
+            <!-- Fallback -->
+            <div v-else>
+              <p>Открой сайт в Chrome, Edge или Safari — там доступна установка как PWA.</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Кнопки -->
         <div class="space-y-3">
           <button
@@ -93,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { usePlatform } from '@/composables/usePlatform'
 
 // props:
 //   visible: Boolean — показывать ли модал
@@ -107,6 +142,9 @@ const props = defineProps({
 //   close — пользователь нажал «Понятно, начать» (не ставит флаг)
 //   dismiss — пользователь нажал «Больше не показывать» (ставит флаг)
 const emit = defineEmits(['close', 'dismiss'])
+
+// Платформа для блока «Установить как приложение»
+const { isStandalone, isIOS, isAndroid, isIOSSafari, isIOSOther, browser } = usePlatform()
 
 function close() {
   emit('close')

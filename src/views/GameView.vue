@@ -9,9 +9,18 @@
     <!-- Шапка: скрыта когда isFinished -->
     <header v-if="!isFinished" class="text-center mb-6" role="banner">
       <div class="flex justify-between items-center mb-2 gap-2">
-        <!-- Кнопка "Закрыть" — кружок с крестиком, крупная для пальца -->
-        <button @click="goBack" class="w-11 h-11 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 hover:bg-white/15 transition-all text-2xl leading-none transition-all shrink-0" aria-label="Закрыть и вернуться на главную" title="На главную">
-          ⊗
+        <!-- Кнопка "Закрыть" — кружок с крестиком, минималистичная, под палец (44px) -->
+        <button
+          @click="goBack"
+          class="w-11 h-11 flex items-center justify-center rounded-full border transition-all shrink-0
+                 border-stone-300 text-stone-600 hover:bg-stone-200 hover:border-stone-400
+                 dark:border-white/20 dark:text-white/80 dark:hover:bg-white/15 dark:hover:border-white/30"
+          aria-label="Закрыть и вернуться на главную"
+          title="На главную"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="w-5 h-5" aria-hidden="true">
+            <path d="M6 6 L18 18 M18 6 L6 18" />
+          </svg>
         </button>
         <!-- v5.11: бейдж категории колоды + строка «порядок A • Вопрос N из M».
              v5.13: бейдж содержит иконку перед названием. -->
