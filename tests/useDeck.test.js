@@ -1370,15 +1370,15 @@ describe('useDeck — v5.5 edge cases', () => {
           throw new DOMException('QuotaExceededError', 'QuotaExceededError')
         }
       })
-    global.confirm = vi.fn(() => true)
     try {
+      // v5.20: deleteDeck больше не вызывает confirm() — это делает UI.
+      // Возвращаемый объект { ok: false, deletedSessionCount: 0 } вместо boolean.
       const result = d.deleteDeck('del-test')
-      expect(result).toBe(false)
+      expect(result.ok).toBe(false)
       // Колода осталась (откат)
       expect(d.customDecks.value.find(x => x.deckId === 'del-test')).toBeDefined()
     } finally {
       spy.mockRestore()
-      delete global.confirm
     }
   })
 
@@ -1402,9 +1402,9 @@ describe('useDeck — v5.5 edge cases', () => {
     }
   })
 
-  // ── deleteDeck активной сессии ──
+  // ── deleteDeck активной сессии (v5.20: удаление, не пометить completed) ──
 
-  it('deleteDeck: если колода в активной сессии — confirm с предупреждением и сброс activeSessionId', () => {
+  it('deleteDeck: если колода в активной сессии — сессия удаляется (cascade=false), activeSessionId сбрасывается', () => {
     const d = useDeck()
     // Создаём колоду и активную сессию с ней
     d.importDeck(makeDeck({ deckId: 'active-deck' }))
@@ -1412,50 +1412,66 @@ describe('useDeck — v5.5 edge cases', () => {
     expect(d.activeSessionId.value).toBeTruthy()
     expect(d.deckId.value).toBe('active-deck')
 
-    // Подтверждаем удаление
-    global.confirm = vi.fn(() => true)
-    try {
-      const result = d.deleteDeck('active-deck')
-      expect(result).toBe(true)
-      // Активная сессия завершена — сброшена
-      expect(d.activeSessionId.value).toBeNull()
-      expect(d.deckId.value).toBeNull()
-      // Колода удалена
-      expect(d.customDecks.value.find(x => x.deckId === 'active-deck')).toBeUndefined()
-    } finally {
-      delete global.confirm
-    }
+    // v5.20: deleteDeck без cascade — удаляет только активную сессию, колода удаляется
+    const result = d.deleteDeck('active-deck')
+    expect(result.ok).toBe(true)
+    expect(result.deletedSessionCount).toBe(1)  // активная сессия удалена
+    // Активная сессия удалена — сброшены refs
+    expect(d.activeSessionId.value).toBeNull()
+    expect(d.deckId.value).toBeNull()
+    // Колода удалена
+    expect(d.customDecks.value.find(x => x.deckId === 'active-deck')).toBeUndefined()
+    // Сессия НЕ помечена completed — её просто нет в истории
+    expect(d.sessions.value.find(s => s.deckId === 'active-deck')).toBeUndefined()
   })
 
-  it('deleteDeck: если пользователь отменил confirm — колода остаётся', () => {
+  it('deleteDeck: cascade=true удаляет колоду + все связанные сессии', () => {
     const d = useDeck()
-    d.importDeck(makeDeck({ deckId: 'stay-deck' }))
-    global.confirm = vi.fn(() => false)
-    try {
-      const result = d.deleteDeck('stay-deck')
-      expect(result).toBe(false)
-      expect(d.customDecks.value.find(x => x.deckId === 'stay-deck')).toBeDefined()
-    } finally {
-      delete global.confirm
-    }
-  })
-
-  it('deleteDeck: confirm-сообщение упоминает «активная сессия» если колода активна', () => {
-    const d = useDeck()
-    d.importDeck(makeDeck({ deckId: 'active-deck-2', name: 'Активная Колода' }))
-    d.startSession('active-deck-2', 0, 'reader')
-    let confirmMsg = ''
-    global.confirm = vi.fn((msg) => {
-      confirmMsg = msg
-      return false  // отменяем, чтобы не влиять на остальное
+    d.importDeck(makeDeck({ deckId: 'multi-deck' }))
+    // Создаём активную сессию
+    d.startSession('multi-deck', 0, 'reader')
+    // Добавляем 2 завершённые сессии в историю напрямую через sessions.value
+    d.sessions.value.push({
+      id: 'sess_old1', deckId: 'multi-deck', orderIndex: 1,
+      currentTurn: 5, role: 'reader', passedIds: ['q1','q2','q3','q4','q5'],
+      skippedIds: [], name: null, startTime: new Date().toISOString(),
+      elapsedMs: 1000, maxReachedTurn: 5, completed: true,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    }, {
+      id: 'sess_old2', deckId: 'multi-deck', orderIndex: 2,
+      currentTurn: 3, role: 'listener', passedIds: ['q1','q2','q3'],
+      skippedIds: [], name: null, startTime: new Date().toISOString(),
+      elapsedMs: 2000, maxReachedTurn: 3, completed: true,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     })
-    try {
-      d.deleteDeck('active-deck-2')
-      expect(confirmMsg).toMatch(/активн/iu)
-      expect(confirmMsg).toContain('Активная Колода')
-    } finally {
-      delete global.confirm
-    }
+    expect(d.sessions.value.filter(s => s.deckId === 'multi-deck')).toHaveLength(3)
+
+    const result = d.deleteDeck('multi-deck', { cascade: true })
+    expect(result.ok).toBe(true)
+    expect(result.deletedSessionCount).toBe(3)  // все 3 сессии удалены
+    // Колода удалена
+    expect(d.customDecks.value.find(x => x.deckId === 'multi-deck')).toBeUndefined()
+    // Все сессии с этим deckId удалены
+    expect(d.sessions.value.filter(s => s.deckId === 'multi-deck')).toHaveLength(0)
+    // Активная сброшена
+    expect(d.activeSessionId.value).toBeNull()
+  })
+
+  it('deleteDeck: getDeckUsageInfo возвращает корректную информацию для UI', () => {
+    const d = useDeck()
+    d.importDeck(makeDeck({ deckId: 'info-deck', name: 'Тест Колода' }))
+    d.startSession('info-deck', 0, 'reader')
+
+    const info = d.getDeckUsageInfo('info-deck')
+    expect(info).toBeTruthy()
+    expect(info.deck.name).toBe('Тест Колода')
+    expect(info.sessionCount).toBeGreaterThanOrEqual(1)
+    expect(info.isActive).toBe(true)
+    // isInCatalog зависит от catalog.value — в тесте каталог пуст, должно быть false
+    expect(info.isInCatalog).toBe(false)
+
+    // Для несуществующей колоды — null
+    expect(d.getDeckUsageInfo('nonexistent')).toBeNull()
   })
 
   // ── loadCatalog применяет дефолт lang ──

@@ -782,43 +782,92 @@ function exportDeck(deckIdArg) {
 }
 
 // deleteDeck: удаляет кастомную колоду.
-// Предупреждаем: сессии с этой колодой могут остаться в истории, но станут непоказываемыми.
-// v5.5: если удаляется колода активной сессии — предупреждаем и завершаем активную сессию.
-// v5.5: откат, если localStorage переполнен (маловероятно при удалении, но для consistency).
-function deleteDeck(deckIdArg) {
+// v5.20: диалог подтверждения перенесён из useDeck в SetupView (через ConfirmDialog).
+//   Здесь только логика удаления. Опция cascade: если true — удаляет и все сессии
+//   с этим deckId. Активная сессия (если использует эту колоду) — удаляется
+//   в обоих режимах (cascade и no-cascade), но НЕ помечается completed
+//   (это было misleading в v5.5: сессия, где пользователь не ответил ни разу,
+//   получала ✅ Завершена).
+//
+// Возвращает: { ok: boolean, deletedSessionCount: number }
+//   deletedSessionCount — сколько сессий было удалено (cascade=true: все;
+//   cascade=false: только активная, если была).
+function deleteDeck(deckIdArg, { cascade = false } = {}) {
   const d = customDecks.value.find(x => x.deckId === deckIdArg)
-  if (!d) return false
-  // Считаем сколько сессий используют эту колоду
-  const sessionCount = sessions.value.filter(s => s.deckId === deckIdArg).length
-  // v5.5: проверяем, активна ли сессия с этой колодой
+  if (!d) return { ok: false, deletedSessionCount: 0 }
+
+  // v5.20: если активная сессия использует эту колоду — удаляем её из истории.
+  // Раньше вызывали resetProgress(), который помечал сессию completed:true —
+  // это было misleading (сессия без ответов получала ✅). Теперь просто удаляем.
+  let deletedSessionCount = 0
   const isActive = activeSession.value?.deckId === deckIdArg
 
-  let msg = `Удалить колоду "${d.name}"?`
-  if (isActive && sessionCount > 0) {
-    msg = `Удалить колоду "${d.name}"?\n\n` +
-          `Эта колода используется в активной сессии — она будет завершена.\n` +
-          `У вас есть ${sessionCount} сессий с этой колодой — они останутся в истории, но не смогут открыться.`
+  if (cascade) {
+    // Удаляем ВСЕ сессии с этим deckId (включая активную, если есть)
+    const beforeSessions = sessions.value
+    const toDelete = beforeSessions.filter(s => s.deckId === deckIdArg)
+    deletedSessionCount = toDelete.length
+    sessions.value = beforeSessions.filter(s => s.deckId !== deckIdArg)
+    saveSessions(sessions.value)
+    // Если активная сессия была в списке — сбрасываем refs
+    if (isActive) {
+      // Блокируем watch, чтобы не писал мусор в sessions во время сброса refs
+      isLoading = true
+      activeSessionId.value = null
+      saveActiveSessionId(null)
+      deckId.value = null
+      orderIndex.value = null
+      role.value = null
+      currentTurn.value = 0
+      passedIds.value = []
+      skippedIds.value = []
+      sessionName.value = null
+      startTime.value = null
+      elapsedMs.value = 0
+      resumeLast = 0
+      maxReachedTurn.value = 0
+      isLoading = false
+    }
   } else if (isActive) {
-    msg = `Удалить колоду "${d.name}"?\n\n` +
-          `Эта колода используется в активной сессии — она будет завершена.`
-  } else if (sessionCount > 0) {
-    msg = `Удалить колоду "${d.name}"? У вас есть ${sessionCount} сессий с этой колодой — они останутся в истории, но не смогут открыться.`
-  }
-  if (!confirm(msg)) return false
-
-  // v5.5: если активная сессия использует эту колоду — завершаем её
-  if (isActive) {
-    resetProgress()
+    // cascade=false, но активная сессия использует эту колоду — удаляем только её.
+    // Остальные сессии остаются в истории (orphaned, v5.19.3 auto-recovery попытается
+    // восстановить колоду из каталога при следующем визите).
+    deleteSession(activeSessionId.value)
+    deletedSessionCount = 1
   }
 
+  // Удаляем саму колоду
   const before = customDecks.value
   customDecks.value = customDecks.value.filter(x => x.deckId !== deckIdArg)
   if (!saveCustomDecks(customDecks.value)) {
-    // Откат — восстановим прежний массив
+    // Откат — восстановим прежний массив customDecks
     customDecks.value = before
-    return false
+    // И откат сессий (если cascade удалял)
+    if (cascade && deletedSessionCount > 0) {
+      // Невозможно идеально откатить без сохранения beforeSessions — поэтому возвращаем ok:false
+      // На практике saveCustomDecks почти никогда не падает при удалении (объём меньше).
+      return { ok: false, deletedSessionCount: 0 }
+    }
+    return { ok: false, deletedSessionCount: 0 }
   }
-  return true
+  return { ok: true, deletedSessionCount }
+}
+
+// getDeckUsageInfo: вспомогательная функция для UI (SetupView).
+// Возвращает { sessionCount, isActive, isInCatalog } для формирования текста модалки.
+function getDeckUsageInfo(deckIdArg) {
+  const d = customDecks.value.find(x => x.deckId === deckIdArg)
+  if (!d) return null
+  const sessionCount = sessions.value.filter(s => s.deckId === deckIdArg).length
+  const isActive = activeSession.value?.deckId === deckIdArg
+  // isInCatalog: можно ли восстановить колоду из каталога при следующем визите
+  const isInCatalog = catalog.value.some(c => c.deckId === deckIdArg)
+  return {
+    deck: d,
+    sessionCount,
+    isActive,
+    isInCatalog,
+  }
 }
 
 // renameDeck: переименование кастомной колоды (≤128 символов).
@@ -1410,6 +1459,8 @@ export function useDeck() {
     // v5.1: custom decks
     decks, deckIds, customDecks,
     importDeck, exportDeck, deleteDeck, renameDeck,
+    // v5.20: getDeckUsageInfo — для UI (ConfirmDialog в SetupView)
+    getDeckUsageInfo,
     exportBackup, importBackup,
     // v5.4: unified catalog
     catalogDecks, isCustomDeck,

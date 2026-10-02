@@ -10,6 +10,15 @@
       @dismiss="dismissOnboarding"
     />
 
+    <!-- v5.20: ConfirmDialog для удаления колоды (cascade vs только колоду) -->
+    <ConfirmDialog
+      :visible="deleteDialog.visible"
+      :title="deleteDialog.title"
+      :message="deleteDialog.message"
+      :buttons="deleteDialog.buttons"
+      @close="onDeleteDialogClose"
+    />
+
     <div class="max-w-2xl mx-auto">
       <!-- v5.15: шапка с иконкой приложения + название + подзаголовок -->
       <div class="flex items-center justify-center gap-3 mb-2">
@@ -496,7 +505,18 @@
                   </div>
                   <div class="text-sm opacity-80">{{ d.description }}</div>
                   <div class="flex items-center justify-between gap-2 mt-2">
-                    <div class="text-xs opacity-70">{{ d.questions.length }} вопросов</div>
+                    <div class="flex items-center gap-2 text-xs opacity-70">
+                      <span>{{ d.questions.length }} вопросов</span>
+                      <!-- v5.20: badge «📁 N» — сколько сессий с этой колодой в истории -->
+                      <span
+                        v-if="sessionCountByDeck(d.deckId) > 0"
+                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-200/60 dark:bg-white/10 text-stone-600 dark:text-white/70"
+                        :title="`Сессий в истории с этой колодой: ${sessionCountByDeck(d.deckId)}`"
+                      >
+                        <span aria-hidden="true">📁</span>
+                        <span>{{ sessionCountByDeck(d.deckId) }}</span>
+                      </span>
+                    </div>
                     <!-- Действия только для кастомных колод. @click.stop предотвращает выбор колоды. -->
                     <div v-if="d.kind === 'custom'" class="flex gap-1">
                       <button
@@ -829,6 +849,7 @@ import QRCode from 'qrcode'
 import { useDeck, buildShareUrl, parseShareUrl } from '@/composables/useDeck'
 import { usePlatform } from '@/composables/usePlatform'
 import OnboardingScreen from '@/components/OnboardingScreen.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 // ─── Версия приложения и git-коммит (инжектируются через vite.config.js define) ──
 // Если запускается не через Vite (например, в тестах) — fallback на пустые строки.
@@ -866,6 +887,8 @@ const {
   sessions, activeSessionId, loadSession, deleteSession, exportSession, renameSession,
   // v5.1: custom decks
   decks, customDecks, importDeck, exportDeck, deleteDeck, renameDeck,
+  // v5.20: getDeckUsageInfo — для ConfirmDialog (кол-во сессий, isActive, isInCatalog)
+  getDeckUsageInfo,
   exportBackup, importBackup,
   // v5.4: unified catalog
   catalogDecks, isCustomDeck,
@@ -1291,6 +1314,11 @@ function sessionOrderName(s) {
 function sessionTotal(s) {
   return decks.value[s.deckId]?.orders?.[s.orderIndex]?.sequence.length ?? 0
 }
+// v5.20: реактивный подсчёт сессий по deckId — для badge «📁 N» на карточке колоды.
+// Используется в шаблоне (computed пересчитывается при изменении sessions.value).
+function sessionCountByDeck(deckIdArg) {
+  return sessions.value.filter(s => s.deckId === deckIdArg).length
+}
 // v5.19.3: проверка, что у сессии отсутствует колода (для показа badge + кнопки удалить)
 function isSessionDeckMissing(s) {
   return missingDeckIds.value.includes(s.deckId)
@@ -1586,9 +1614,112 @@ function handleExportDeck(deckIdArg) {
   exportDeck(deckIdArg)
 }
 
+// v5.20: Delete Deck Dialog
+// Показывает ConfirmDialog с динамическим текстом в зависимости от того:
+//   - сколько сессий используют колоду (0 / 1+ / активная)
+//   - есть ли колода в каталоге (можно ли восстановить через auto-recovery)
+//
+// 3 варианта:
+//   - cascade  — удалить колоду + все связанные сессии (primary/danger)
+//   - only-deck — удалить только колоду (secondary; активная сессия всё равно удалится)
+//   - cancel   — отмена
+//
+// Если сессий 0 — упрощённая модалка: одна кнопка «Удалить» + «Отмена».
+const deleteDialog = ref({
+  visible: false,
+  deckId: null,
+  title: '',
+  message: '',
+  buttons: [],
+})
+
 function handleDeleteDeck(deckIdArg) {
-  if (deleteDeck(deckIdArg)) {
-    // Если удалили колоду, которая была выбрана — сброс
+  const info = getDeckUsageInfo(deckIdArg)
+  if (!info) return
+
+  const { deck, sessionCount, isActive, isInCatalog } = info
+  const title = `Удалить колоду «${deck.name}»?`
+
+  // Упрощённый случай: 0 сессий с этой колодой
+  if (sessionCount === 0) {
+    deleteDialog.value = {
+      visible: true,
+      deckId: deckIdArg,
+      title,
+      message: '',
+      buttons: [
+        { id: 'cascade', label: 'Удалить колоду', variant: 'danger' },
+        { id: 'cancel', label: 'Отмена', variant: 'secondary' },
+      ],
+    }
+    return
+  }
+
+  // Основной случай: есть сессии с этой колодой
+  // Текст про активную сессию (если есть) — добавляем перед кнопками как message
+  let message = ''
+  if (isActive) {
+    message = `Активная сессия будет удалена.\n`
+  }
+  message += `С этой колодой связано сессий: ${sessionCount}.`
+
+  // Кнопка «Удалить только колоду» — динамический hint
+  // В зависимости от isInCatalog:
+  //   - isInCatalog=true:  «Сессии останутся в истории. Колода будет автоматически загружена из каталога при следующем визите.»
+  //   - isInCatalog=false: «Сессии останутся в истории, но без колоды открыть их нельзя. Чтобы открыть — импортируйте колоду снова из файла.»
+  const onlyDeckHint = isInCatalog
+    ? 'Сессии останутся. Колода восстановится из каталога при следующем визите.'
+    : 'Сессии останутся. Чтобы открыть их — импортируйте колоду снова.'
+
+  deleteDialog.value = {
+    visible: true,
+    deckId: deckIdArg,
+    title,
+    message,
+    buttons: [
+      {
+        id: 'cascade',
+        label: `Удалить колоду и ${sessionCount} ${pluralize(sessionCount, 'сессию', 'сессии', 'сессий')}`,
+        variant: 'danger',
+        hint: 'Полная очистка',
+      },
+      {
+        id: 'only-deck',
+        label: 'Удалить только колоду',
+        variant: 'secondary',
+        hint: onlyDeckHint,
+      },
+      { id: 'cancel', label: 'Отмена', variant: 'secondary' },
+    ],
+  }
+}
+
+// Хелпер для русских склонений
+function pluralize(n, one, few, many) {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 14) return many
+  if (mod10 === 1) return one
+  if (mod10 >= 2 && mod10 <= 4) return few
+  return many
+}
+
+function onDeleteDialogClose(buttonId) {
+  const deckIdArg = deleteDialog.value.deckId
+  const dialogVisible = deleteDialog.value.visible
+  // Скрываем модалку
+  deleteDialog.value = { visible: false, deckId: null, title: '', message: '', buttons: [] }
+
+  if (!dialogVisible || !deckIdArg) return
+
+  if (buttonId === 'cancel') return  // отмена — ничего не делаем
+
+  // cascade или only-deck
+  const cascade = buttonId === 'cascade'
+  const result = deleteDeck(deckIdArg, { cascade })
+
+  if (result.ok) {
+    // Если удалили колоду, которая была выбрана в форме — сброс формы
     if (selectedDeckId.value === deckIdArg) {
       selectedDeckId.value = null
       selectedOrderIndex.value = null
