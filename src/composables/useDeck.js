@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { decks as builtinDecks, deckIds as builtinDeckIds, deckCategories, deckCategorySlugs, makeRandom, generateOrder } from '@/data/decks'
 
-const SCHEMA_VERSION = 3  // v3: кастомные колоды
+const SCHEMA_VERSION = 4  // v4: mode: 'duo' | 'solo'
 const sessionsKey = 'coffee_sessions'
 const activeSessionIdKey = 'coffee_active_session_id'
 const themeKey = 'theme_preference'
@@ -257,6 +257,33 @@ function migrateV1ToV2() {
   }
 }
 
+// ─── Migration v3 → v4: добавляем mode: 'duo' всем существующим сессиям ──
+// v4 вводит поле `mode` ('duo' | 'solo'). Старые сессии (созданные до v6.0)
+// не имеют этого поля — мигрируем их как 'duo' (дефолтный режим).
+// Идемпотентно: если у сессии уже есть mode, не трогаем.
+function migrateV3ToV4() {
+  try {
+    const raw = localStorage.getItem(sessionsKey)
+    if (!raw) return
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr) || arr.length === 0) return
+    let changed = false
+    const migrated = arr.map(s => {
+      if (s && !s.mode) {
+        changed = true
+        return { ...s, mode: 'duo' }
+      }
+      return s
+    })
+    if (changed) {
+      saveSessions(migrated)
+      console.log(`[coffee-cards] Migrated ${migrated.filter(s => s.mode === 'duo' && !arr.find(o => o.id === s.id)?.mode).length} sessions v3→v4 (mode='duo')`)
+    }
+  } catch (e) {
+    console.warn('[coffee-cards] v3→v4 migration failed:', e)
+  }
+}
+
 // ─── Инициализация ──────────────────────────────────────────────
 // migrateV1ToV2 вызывается ПОСЛЕ создания decks computed (ниже), т.к. использует decks.value[].
 
@@ -303,6 +330,8 @@ const catalogDecks = computed(() => {
 
 // v5.1: миграция вызывается после создания decks (т.к. использует decks.value)
 migrateV1ToV2()
+// v6.0: миграция v3→v4 — добавляет mode: 'duo' старым сессиям
+migrateV3ToV4()
 // После миграции — перезагружаем sessions и activeSessionId (миграция писала в localStorage,
 // а refs уже были загружены до миграции)
 sessions.value = loadSessions()
@@ -319,6 +348,9 @@ const deckId      = ref(activeSession.value?.deckId ?? null)
 const orderIndex  = ref(activeSession.value?.orderIndex ?? null)
 const currentTurn = ref(activeSession.value?.currentTurn ?? 0)
 const role        = ref(activeSession.value?.role ?? null)
+// v6.0: mode — режим сессии ('duo' на двух устройствах | 'solo' на одном).
+// В solo mode роль не нужна (всегда читающий), skip = +1 (не +2), share-ссылка не нужна.
+const mode        = ref(activeSession.value?.mode ?? 'duo')
 const passedIds   = ref(activeSession.value?.passedIds ? [...activeSession.value.passedIds] : [])
 const skippedIds  = ref(activeSession.value?.skippedIds ? [...activeSession.value.skippedIds] : [])
 const theme       = ref(localStorage.getItem(themeKey) || 'dark')
@@ -355,6 +387,9 @@ const currentQuestion = computed(() => {
 })
 
 const amIReading = computed(() => {
+  // v6.0: в solo mode пользователь всегда читает (один оператор телефона).
+  // Роль не нужна, чередования нет — карточка видна всегда.
+  if (mode.value === 'solo') return true
   if (!role.value || !currentOrder.value) return false
   const isEvenTurn = currentTurn.value % 2 === 0
   return role.value === 'reader' ? isEvenTurn : !isEvenTurn
@@ -413,10 +448,13 @@ const isFinished = computed(() => {
 // hasSavedSession: true только если есть АКТИВНАЯ (не завершённая) сессия.
 // Завершённые сессии остаются в истории, но не показываются в блоке "Продолжить".
 // Защитная проверка: если currentTurn >= sequence.length, тоже считаем завершённой.
+// v6.0: в solo mode роль не нужна — проверка role пропускается.
 const hasSavedSession = computed(() => {
   if (!activeSession.value) return false
   if (activeSession.value.completed) return false
-  if (!deckId.value || orderIndex.value === null || !role.value) return false
+  if (!deckId.value || orderIndex.value === null) return false
+  // role нужен только в duo mode (solo работает без роли)
+  if (mode.value === 'duo' && !role.value) return false
   // Defensive: если currentTurn >= длины — сессия фактически завершена
   if (currentOrder.value && currentTurn.value >= currentOrder.value.sequence.length) return false
   return true
@@ -449,6 +487,7 @@ function persistActiveSession() {
     orderIndex: orderIndex.value,
     currentTurn: currentTurn.value,
     role: role.value,
+    mode: mode.value,                       // v6.0
     passedIds: [...passedIds.value],
     skippedIds: [...skippedIds.value],
     name: sessionName.value,
@@ -556,7 +595,7 @@ if (typeof window !== 'undefined' && window.matchMedia) {
 // startSession: создаёт НОВУЮ сессию в истории, делает её активной.
 // Старая активная остаётся в истории как неактивная (при этом её таймер
 // останавливается через pauseTimer ниже).
-function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTurn = 0) {
+function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTurn = 0, sessionMode = 'duo') {
   // Сначала приостанавливаем таймер текущей активной сессии (если была)
   pauseTimer()
 
@@ -569,6 +608,9 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
   const sequence = decks.value[selectedDeckId]?.orders[selectedOrderIndex]?.sequence || []
   const autoPassedIds = turn > 0 ? sequence.slice(0, turn).filter(Boolean) : []
 
+  // v6.0: в solo mode роль не нужна. Если передали role для solo — игнорируем.
+  const finalRole = sessionMode === 'solo' ? null : selectedRole
+
   const id = genId()
   const now = new Date().toISOString()
   const newSession = {
@@ -576,7 +618,8 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
     deckId: selectedDeckId,
     orderIndex: selectedOrderIndex,
     currentTurn: turn,
-    role: selectedRole,
+    role: finalRole,
+    mode: sessionMode,                     // v6.0: 'duo' | 'solo'
     passedIds: autoPassedIds,
     skippedIds: [],
     name: null,
@@ -598,7 +641,8 @@ function startSession(selectedDeckId, selectedOrderIndex, selectedRole, startTur
   isLoading = true
   deckId.value = selectedDeckId
   orderIndex.value = selectedOrderIndex
-  role.value = selectedRole
+  role.value = finalRole                    // v6.0: null для solo
+  mode.value = sessionMode                  // v6.0
   currentTurn.value = turn
   passedIds.value = [...autoPassedIds]
   skippedIds.value = []
@@ -626,6 +670,7 @@ function loadSession(id) {
   deckId.value = s.deckId
   orderIndex.value = s.orderIndex
   role.value = s.role
+  mode.value = s.mode ?? 'duo'              // v6.0: fallback для старых сессий без mode
   currentTurn.value = s.currentTurn
   passedIds.value = [...(s.passedIds || [])]
   skippedIds.value = [...(s.skippedIds || [])]
@@ -1283,7 +1328,10 @@ function skipQuestion() {
   if (!skippedIds.value.includes(id)) {
     skippedIds.value.push(id)
   }
-  currentTurn.value += 2
+  // v6.0: в solo mode skip = +1 (пропустить один вопрос).
+  // В duo mode skip = +2 (пропустить раунд: читающий + отвечающий).
+  const skipStep = mode.value === 'solo' ? 1 : 2
+  currentTurn.value += skipStep
   // skip перепрыгивает ход — обновляем maxReachedTurn
   if (currentTurn.value > maxReachedTurn.value) maxReachedTurn.value = currentTurn.value
   lastActiveAt.value = new Date().toISOString()  // v5.3
@@ -1320,6 +1368,7 @@ function resetProgress() {
   deckId.value = null
   orderIndex.value = null
   role.value = null
+  mode.value = 'duo'            // v6.0: сброс к дефолту
   isLoading = false
 }
 
@@ -1473,7 +1522,7 @@ export function useDeck() {
     ensureDecksForSessions, missingDeckIds,
     // state
     deck, deckId, orderIndex, currentOrder, currentQuestion, currentTurn,
-    role, amIReading, passedIds, skippedIds,
+    role, mode, amIReading, passedIds, skippedIds,
     sessionName, startTime, elapsedMs, lastActiveAt,
     isAnswered, isSkipped, isJumpedTurn, isNextOpened,
     activeSkippedCount, theme,

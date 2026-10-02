@@ -34,6 +34,14 @@
             <span v-if="deckCategoryInfo.icon" class="text-[11px] leading-none" aria-hidden="true">{{ deckCategoryInfo.icon }}</span>
             <span>{{ deckCategoryInfo.name }}</span>
           </span>
+          <span
+            v-if="mode === 'solo'"
+            class="text-[10px] px-2 py-0.5 rounded-full font-bold leading-none border whitespace-nowrap inline-flex items-center gap-1 bg-stone-200/60 dark:bg-white/10 text-stone-600 dark:text-white/70 border-stone-300 dark:border-white/20"
+            title="Режим: на одном устройстве"
+          >
+            <span aria-hidden="true">🪞</span>
+            <span>Соло</span>
+          </span>
           <span class="whitespace-nowrap">
             {{ currentOrder?.name }} • Вопрос {{ currentTurn + 1 }} из {{ currentOrder?.sequence.length }}
           </span>
@@ -178,7 +186,7 @@
           ? 'bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900'
           : 'bg-emerald-500 hover:bg-emerald-400 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400'"
       >
-        {{ amIReading ? 'Партнёр ответил ➔' : 'Я ответил ➔' }}
+        {{ amIReading ? (mode === 'solo' ? 'Дальше ➔' : 'Партнёр ответил ➔') : 'Я ответил ➔' }}
       </button>
     </div>
 
@@ -223,7 +231,7 @@ import { useDeck } from '@/composables/useDeck'
 
 const router = useRouter()
 const {
-  currentOrder, currentQuestion, currentTurn, amIReading,
+  currentOrder, currentQuestion, currentTurn, amIReading, mode,
   passedIds, skippedIds, activeSkippedCount, isAnswered, isSkipped,
   isJumpedTurn, isNextOpened,
   startTime, elapsedMs, deck,

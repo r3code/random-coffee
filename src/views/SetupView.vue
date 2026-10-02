@@ -108,8 +108,9 @@
             </button>
 
             <!-- v5.8: QR-блок стандартизирован с экраном «Новая сессия».
+                 v6.0: скрыт в solo mode (нет партнёра для синхронизации).
                  Текст инструкции + QR + ссылка простым текстом + иконка ⧉ для копирования -->
-            <div class="text-center">
+            <div v-if="mode !== 'solo'" class="text-center">
               <div class="flex items-start gap-2 text-left mb-4 px-2">
                 <span class="text-base shrink-0 mt-0.5 opacity-70" aria-hidden="true">ℹ️</span>
                 <p class="text-xs opacity-70 leading-snug">
@@ -185,8 +186,17 @@
                     <div v-if="s.name" class="font-bold leading-snug break-words">
                       {{ s.name }}
                     </div>
-                    <div class="leading-snug break-words" :class="s.name ? 'text-sm opacity-80' : 'font-bold'">
-                      {{ sessionDeckName(s) }} • порядок {{ sessionOrderName(s) }}
+                    <div class="leading-snug break-words flex items-center gap-2 flex-wrap" :class="s.name ? 'text-sm opacity-80' : 'font-bold'">
+                      <span>{{ sessionDeckName(s) }} • порядок {{ sessionOrderName(s) }}</span>
+                      <!-- v6.0: badge «🪞 Соло» для solo-сессий -->
+                      <span
+                        v-if="s.mode === 'solo'"
+                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-200/60 dark:bg-white/10 text-stone-600 dark:text-white/70 text-[10px] font-bold leading-none"
+                        title="Сессия в режиме «на одном устройстве»"
+                      >
+                        <span aria-hidden="true">🪞</span>
+                        <span>Соло</span>
+                      </span>
                     </div>
                     <div class="text-xs opacity-70 mt-1">
                       {{ isSessionFinished(s)
@@ -314,6 +324,37 @@
         </div>
 
         <div class="space-y-6">
+          <!-- v6.0: Блок 0 — Выбор режима (duo на двух устройствах / solo на одном) -->
+          <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
+            <h2 class="text-2xl font-bold mb-4">Как играете?</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                @click="selectMode('duo')"
+                :aria-pressed="selectedMode === 'duo'"
+                class="p-4 rounded-xl text-left transition-all border-2"
+                :class="selectedMode === 'duo'
+                  ? 'border-amber-400 bg-amber-50 dark:bg-yellow-500/20 dark:border-yellow-500'
+                  : 'border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20'"
+              >
+                <div class="text-2xl mb-2">📱</div>
+                <div class="font-bold mb-1">На двух устройствах</div>
+                <div class="text-sm opacity-70">Синхронизация через QR-код или ссылку. Партнёр на своём телефоне.</div>
+              </button>
+              <button
+                @click="selectMode('solo')"
+                :aria-pressed="selectedMode === 'solo'"
+                class="p-4 rounded-xl text-left transition-all border-2"
+                :class="selectedMode === 'solo'
+                  ? 'border-amber-400 bg-amber-50 dark:bg-yellow-500/20 dark:border-yellow-500'
+                  : 'border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20'"
+              >
+                <div class="text-2xl mb-2">🪞</div>
+                <div class="font-bold mb-1">На одном устройстве</div>
+                <div class="text-sm opacity-70">Читаете по очереди или вслух с одного телефона. Без синхронизации.</div>
+              </button>
+            </div>
+          </div>
+
           <!-- Блок 1: Выбор колоды -->
           <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <h2 class="text-2xl font-bold mb-4">1. Выберите колоду</h2>
@@ -676,8 +717,8 @@
             </div>
           </div>
 
-          <!-- Блок 3: Роль (виден, disabled пока нет порядка) -->
-          <div ref="step3Ref"
+          <!-- Блок 3: Роль (виден, disabled пока нет порядка). v6.0: скрыт в solo mode -->
+          <div v-if="selectedMode === 'duo'" ref="step3Ref"
                class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 transition-opacity scroll-mt-4"
                :class="selectedOrderIndex === null ? 'opacity-60' : ''">
             <h2 class="text-2xl font-bold mb-4">3. Выберите роль</h2>
@@ -740,8 +781,8 @@
             </div>
           </div>
 
-          <!-- Блок 4: QR-код (виден, плейсхолдер пока нет роли) -->
-          <div class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
+          <!-- Блок 4: QR-код (виден, плейсхолдер пока нет роли). v6.0: скрыт в solo mode -->
+          <div v-if="selectedMode === 'duo'" class="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
             <h3 class="text-xl font-bold mb-4">Синхронизация с партнёром</h3>
 
             <div v-if="!selectedRole">
@@ -786,11 +827,11 @@
             </div>
           </div>
 
-          <!-- Кнопка "Начать сессию" (видна, disabled пока нет роли) -->
+          <!-- Кнопка "Начать сессию" (disabled пока нет колоды+порядка, и в duo ещё роли). v6.0: в solo role не нужна -->
           <button
             ref="startButtonRef"
             @click="startGame"
-            :disabled="!selectedRole"
+            :disabled="selectedMode === 'duo' ? !selectedRole : (!selectedDeckId || selectedOrderIndex === null)"
             class="w-full py-5 bg-amber-300 hover:bg-amber-400 text-amber-900 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-gray-900 text-xl font-bold rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-300 dark:disabled:hover:bg-yellow-500 scroll-mt-4"
           >
             Начать сессию ➔
@@ -882,7 +923,7 @@ const {
   hasSavedSession, startSession,
   importState, theme, setTheme,
   // Реактивные данные сохранённой сессии
-  deckId, orderIndex, currentTurn, role, deck, currentOrder,
+  deckId, orderIndex, currentTurn, role, mode, deck, currentOrder,
   // История сессий
   sessions, activeSessionId, loadSession, deleteSession, exportSession, renameSession,
   // v5.1: custom decks
@@ -1117,6 +1158,8 @@ const showNewForm = ref(false)
 const selectedDeckId = ref(null)
 const selectedOrderIndex = ref(null)
 const selectedRole = ref(null)
+// v6.0: режим сессии — 'duo' (на двух устройствах) | 'solo' (на одном)
+const selectedMode = ref('duo')
 const shareParams = ref(null)
 const qrDataUrl = ref('')
 const continueQrDataUrl = ref('')
@@ -1291,8 +1334,10 @@ const savedTotalQuestions = computed(() => currentOrder.value?.sequence.length ?
 const savedDeckMissing = computed(() => !!deckId.value && missingDeckIds.value.includes(deckId.value))
 
 // ─── QR для ПРОДОЛЖЕНИЯ ──────────────────────────────────────
+// v6.0: в solo mode share-ссылка не нужна (нет партнёра для синхронизации).
 const continueShareUrl = computed(() => {
   if (!hasSavedSession.value) return ''
+  if (mode.value === 'solo') return ''  // v6.0: solo — без share
   return buildShareUrl(deckId.value, orderIndex.value, role.value, currentTurn.value)
 })
 
@@ -1389,6 +1434,13 @@ onMounted(() => {
   ensureDecksForSessions()
 })
 
+// v6.0: выбор режима сессии ('duo' | 'solo').
+// При смене режима сбрасываем роль (в solo она не нужна, в duo — обязательна).
+function selectMode(m) {
+  selectedMode.value = m
+  selectedRole.value = null  // роль не валидна при смене режима
+}
+
 function selectDeck(dId) {
   selectedDeckId.value = dId
   selectedOrderIndex.value = null
@@ -1472,6 +1524,7 @@ function enterNewForm() {
   selectedDeckId.value = null
   selectedOrderIndex.value = null
   selectedRole.value = null
+  selectedMode.value = 'duo'   // v6.0: дефолт — duo
   shareParams.value = null
   // v5.6: каталог разворачиваем (форма открыта заново — пользователь выбирает с нуля).
   isDeckCatalogExpanded.value = true
@@ -1511,7 +1564,8 @@ function startGame() {
     selectedDeckId.value,
     selectedOrderIndex.value,
     selectedRole.value,
-    typeof turn === 'number' ? turn : 0
+    typeof turn === 'number' ? turn : 0,
+    selectedMode.value  // v6.0: 'duo' | 'solo'
   )
   // Очищаем shareParams после использования, чтобы при следующем
   // ручном старте без share-ссылки не применялся старый turn.

@@ -169,8 +169,8 @@ describe('data/decks.js', () => {
 })
 
 describe('useDeck — SCHEMA_VERSION', () => {
-  it('SCHEMA_VERSION = 3 (v3: кастомные колоды)', () => {
-    expect(SCHEMA_VERSION).toBe(3)
+  it('SCHEMA_VERSION = 4 (v4: mode: duo|solo)', () => {
+    expect(SCHEMA_VERSION).toBe(4)
   })
 })
 
@@ -1818,5 +1818,143 @@ describe('useDeck — v5.19.3 missing decks recovery', () => {
 
     // missingDeckIds всё ещё содержит deckId (UI покажет fallback)
     expect(d2.missingDeckIds.value).toContain('no-catalog-deck')
+  })
+})
+
+// ─── v6.0: Solo mode (mode: 'duo' | 'solo') ───────────────────
+describe('useDeck — v6.0 solo mode', () => {
+  let useDeck
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    useDeck = mod.useDeck
+  })
+
+  it('startSession с mode=solo создаёт сессию с mode=solo и role=null', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, null, 0, 'solo')
+    const s = d.sessions.value[0]
+    expect(s.mode).toBe('solo')
+    expect(s.role).toBeNull()
+    expect(d.mode.value).toBe('solo')
+  })
+
+  it('startSession без mode (старый вызов) создаёт сессию с mode=duo', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', 0)
+    const s = d.sessions.value[0]
+    expect(s.mode).toBe('duo')
+    expect(d.mode.value).toBe('duo')
+  })
+
+  it('amIReading в solo mode всегда true', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, null, 0, 'solo')
+    expect(d.amIReading.value).toBe(true)
+    // Даже после nextQuestion (currentTurn=1) — всё равно true
+    d.nextQuestion()
+    expect(d.amIReading.value).toBe(true)
+    d.nextQuestion()
+    expect(d.amIReading.value).toBe(true)
+  })
+
+  it('amIReading в duo mode чередуется по currentTurn % 2', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', 0, 'duo')
+    // currentTurn=0, reader → isEvenTurn=true → amIReading=true
+    expect(d.amIReading.value).toBe(true)
+    d.nextQuestion()  // currentTurn=1
+    // currentTurn=1, reader → isEvenTurn=false → amIReading=false
+    expect(d.amIReading.value).toBe(false)
+  })
+
+  it('skipQuestion в solo mode делает +1 (а не +2)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, null, 0, 'solo')
+    expect(d.currentTurn.value).toBe(0)
+    d.skipQuestion()
+    expect(d.currentTurn.value).toBe(1)  // solo: +1
+    d.skipQuestion()
+    expect(d.currentTurn.value).toBe(2)  // solo: +1
+  })
+
+  it('skipQuestion в duo mode делает +2 (как раньше)', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', 0, 'duo')
+    expect(d.currentTurn.value).toBe(0)
+    d.skipQuestion()
+    expect(d.currentTurn.value).toBe(2)  // duo: +2
+  })
+
+  it('hasSavedSession в solo mode не требует role', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, null, 0, 'solo')
+    // role=null, mode=solo → hasSavedSession должно быть true
+    expect(d.hasSavedSession.value).toBe(true)
+  })
+
+  it('hasSavedSession в duo mode требует role', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, 'reader', 0, 'duo')
+    expect(d.hasSavedSession.value).toBe(true)
+    // Если сбросить role — hasSavedSession станет false (т.к. duo требует role)
+    d.role.value = null
+    expect(d.hasSavedSession.value).toBe(false)
+  })
+
+  it('loadSession восстанавливает mode из сохранённой сессии', () => {
+    const d = useDeck()
+    d.startSession('deep', 0, null, 0, 'solo')
+    const sessionId = d.sessions.value[0].id
+    // Сбрасываем refs через resetProgress
+    d.resetProgress()
+    expect(d.mode.value).toBe('duo')  // reset сбрасывает к дефолту
+    // Загружаем сессию заново
+    d.loadSession(sessionId)
+    expect(d.mode.value).toBe('solo')
+    expect(d.amIReading.value).toBe(true)
+  })
+
+  it('migrateV3ToV4: старым сессиям без mode проставляется duo', async () => {
+    // Создаём «старую» сессию без поля mode
+    const oldSession = {
+      id: 'sess_old_v3', deckId: 'deep', orderIndex: 0,
+      currentTurn: 2, role: 'reader', passedIds: ['q1', 'q2'], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 5000,
+      maxReachedTurn: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false
+      // НЕТ поля mode — как в v3
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([oldSession]))
+
+    // Перезагружаем модуль — должна сработать migrateV3ToV4.
+    // Используем уникальный query, чтобы не закэшировался от beforeEach.
+    const mod = await import('@/composables/useDeck?session=migrate_v3v4_' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    // Сессия должна иметь mode='duo' после миграции
+    const s = d.sessions.value.find(x => x.id === 'sess_old_v3')
+    expect(s).toBeTruthy()
+    expect(s.mode).toBe('duo')
+  })
+
+  it('migrateV3ToV4: идемпотентно — не трогает сессии с уже установленным mode', async () => {
+    const session = {
+      id: 'sess_with_mode', deckId: 'deep', orderIndex: 0,
+      currentTurn: 0, role: 'reader', passedIds: [], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 0,
+      maxReachedTurn: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false,
+      mode: 'solo'  // уже есть mode
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([session]))
+
+    const mod = await import('@/composables/useDeck?session=migrate_idem_' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    const s = d.sessions.value.find(x => x.id === 'sess_with_mode')
+    expect(s.mode).toBe('solo')  // не изменилось
   })
 })
