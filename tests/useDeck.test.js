@@ -1610,3 +1610,197 @@ describe('useDeck — v5.15 onboarding', () => {
     expect(localStorage.getItem('coffee_onboarding_seen_v5_14')).toBe('1')
   })
 })
+
+// ─── v5.19.3: ensureDecksForSessions + missingDeckIds ──────────
+describe('useDeck — v5.19.3 missing decks recovery', () => {
+  // Локальная makeDeck (аналог той, что в других describe-блоках)
+  function makeDeck(overrides = {}) {
+    return {
+      deckId: 'custom-test',
+      name: 'Test Deck',
+      description: 'Для тестов',
+      questions: [
+        { id: 'c1', text: 'В1?' },
+        { id: 'c2', text: 'В2?' },
+        { id: 'c3', text: 'В3?' }
+      ],
+      ...overrides
+    }
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    // URL.createObjectURL нужен для export-функций, которые могут вызываться косвенно
+    if (!global.URL.createObjectURL) {
+      global.URL.createObjectURL = vi.fn(() => 'blob:mock')
+      global.URL.revokeObjectURL = vi.fn()
+    }
+  })
+
+  it('missingDeckIds: возвращает deckId сессий, которых нет в decks.value', async () => {
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    // Создаём сессию с несуществующим deckId напрямую через localStorage
+    const session = {
+      id: 'sess_test_missing', deckId: 'nonexistent-deck', orderIndex: 0,
+      currentTurn: 0, role: 'reader', passedIds: [], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 0,
+      maxReachedTurn: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([session]))
+    localStorage.setItem('coffee_active_session_id', session.id)
+    vi.resetModules()
+    const mod2 = await import('@/composables/useDeck?session=' + Date.now() + Math.random() + 'b')
+    const d2 = mod2.useDeck()
+    expect(d2.missingDeckIds.value).toContain('nonexistent-deck')
+  })
+
+  it('missingDeckIds: пустой, если все deckId сессий резолвятся', async () => {
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    // Создаём сессию с builtin deckId 'deep' (всегда резолвится)
+    const session = {
+      id: 'sess_test_builtin', deckId: 'deep', orderIndex: 0,
+      currentTurn: 0, role: 'reader', passedIds: [], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 0,
+      maxReachedTurn: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([session]))
+    vi.resetModules()
+    const mod2 = await import('@/composables/useDeck?session=' + Date.now() + Math.random() + 'b')
+    const d2 = mod2.useDeck()
+    expect(d2.missingDeckIds.value).toEqual([])
+  })
+
+  it('ensureDecksForSessions: фоново загружает missing deck из catalog через loadDeckFromUrl', async () => {
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    // Создаём сессию с missing deckId
+    const session = {
+      id: 'sess_test_ensure', deckId: 'catalog-deck-1', orderIndex: 0,
+      currentTurn: 0, role: 'reader', passedIds: [], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 0,
+      maxReachedTurn: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([session]))
+
+    // Перезагружаем модуль, чтобы sessions.value подгрузился из localStorage
+    vi.resetModules()
+    const mod2 = await import('@/composables/useDeck?session=' + Date.now() + Math.random() + 'c')
+    const d2 = mod2.useDeck()
+
+    // Мокаем catalog — item с URL для загрузки
+    const deckJson = makeDeck({ deckId: 'catalog-deck-1' })
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(deckJson)
+    }))
+    global.fetch = fetchMock
+
+    // Мокаем loadCatalog — записываем каталог в localStorage, чтобы ensureDecksForSessions его нашёл
+    const catalogItem = {
+      deckId: 'catalog-deck-1',
+      name: 'Catalog Deck 1',
+      description: 'Test deck',
+      url: 'https://example.com/catalog-deck-1.json',
+      questionsCount: 10
+    }
+    localStorage.setItem('catalog_cache', JSON.stringify({
+      timestamp: Date.now(),
+      items: [catalogItem]
+    }))
+
+    // Изначально missingDeckIds содержит catalog-deck-1
+    expect(d2.missingDeckIds.value).toContain('catalog-deck-1')
+
+    // Запускаем ensureDecksForSessions
+    await d2.ensureDecksForSessions()
+
+    // После загрузки — deck должен появиться в decks.value
+    expect(d2.decks.value['catalog-deck-1']).toBeTruthy()
+    expect(d2.decks.value['catalog-deck-1'].name).toBe('Test Deck')
+    expect(d2.missingDeckIds.value).not.toContain('catalog-deck-1')
+
+    // fetch был вызван с правильным URL
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/catalog-deck-1.json', { cache: 'no-cache' })
+
+    global.fetch.mockRestore?.()
+  })
+
+  it('ensureDecksForSessions: идемпотентно — повторный вызов не загружает снова', async () => {
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    const session = {
+      id: 'sess_test_idem', deckId: 'idem-deck', orderIndex: 0,
+      currentTurn: 0, role: 'reader', passedIds: [], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 0,
+      maxReachedTurn: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([session]))
+
+    vi.resetModules()
+    const mod2 = await import('@/composables/useDeck?session=' + Date.now() + Math.random() + 'd')
+    const d2 = mod2.useDeck()
+
+    const deckJson = makeDeck({ deckId: 'idem-deck' })
+    let fetchCount = 0
+    global.fetch = vi.fn(() => {
+      fetchCount++
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(deckJson) })
+    })
+
+    localStorage.setItem('catalog_cache', JSON.stringify({
+      timestamp: Date.now(),
+      items: [{ deckId: 'idem-deck', name: 'Idem', url: 'https://example.com/idem.json', questionsCount: 5 }]
+    }))
+
+    await d2.ensureDecksForSessions()
+    expect(fetchCount).toBe(1)
+
+    // Повторный вызов — fetch не должен вызываться снова
+    await d2.ensureDecksForSessions()
+    expect(fetchCount).toBe(1)
+
+    global.fetch.mockRestore?.()
+  })
+
+  it('ensureDecksForSessions: graceful fail если колоды нет в каталоге', async () => {
+    vi.resetModules()
+    const mod = await import('@/composables/useDeck?session=' + Date.now() + Math.random())
+    const d = mod.useDeck()
+
+    const session = {
+      id: 'sess_test_no_catalog', deckId: 'no-catalog-deck', orderIndex: 0,
+      currentTurn: 0, role: 'reader', passedIds: [], skippedIds: [],
+      name: null, startTime: new Date().toISOString(), elapsedMs: 0,
+      maxReachedTurn: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      completed: false
+    }
+    localStorage.setItem('coffee_sessions', JSON.stringify([session]))
+
+    vi.resetModules()
+    const mod2 = await import('@/composables/useDeck?session=' + Date.now() + Math.random() + 'e')
+    const d2 = mod2.useDeck()
+
+    // Каталог пустой — нет URL для загрузки
+    localStorage.setItem('catalog_cache', JSON.stringify({ timestamp: Date.now(), items: [] }))
+
+    // Не должно бросать
+    await d2.ensureDecksForSessions()
+
+    // missingDeckIds всё ещё содержит deckId (UI покажет fallback)
+    expect(d2.missingDeckIds.value).toContain('no-catalog-deck')
+  })
+})

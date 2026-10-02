@@ -874,6 +874,8 @@ const {
   // v5.2: catalog (remote)
   catalog, catalogLoading, catalogError, catalogLastFetch,
   loadCatalog, loadDeckFromUrl, checkDeckUpdates,
+  // v5.19.3: восстановление missing decks для сессий
+  ensureDecksForSessions, missingDeckIds,
   // v5.15: onboarding
   seenOnboarding, markOnboardingSeen
 } = useDeck()
@@ -1251,10 +1253,19 @@ const shareUrl = computed(() => {
 })
 
 // ─── Инфо о сохранённой сессии (для блока "Продолжить") ─────
-const savedDeckName = computed(() => deck.value?.name || '—')
+// v5.19.3: если deckId активной сессии не резолвится — показываем понятный fallback.
+//   'Колода не найдена' — сессия в истории, но decks.value[deckId] undefined
+//   (пользователь удалил колоду ИЛИ открыл сайт в новом браузере, customDecks пуст).
+const savedDeckName = computed(() => {
+  if (deck.value?.name) return deck.value.name
+  if (deckId.value && missingDeckIds.value.includes(deckId.value)) return 'Колода не найдена'
+  return '—'
+})
 const savedOrderName = computed(() => currentOrder.value?.name || '—')
 const savedTurn = computed(() => currentTurn.value)
 const savedTotalQuestions = computed(() => currentOrder.value?.sequence.length ?? 0)
+// v5.19.3: для блока «Продолжить» — флаг, что колода активной сессии не резолвится
+const savedDeckMissing = computed(() => !!deckId.value && missingDeckIds.value.includes(deckId.value))
 
 // ─── QR для ПРОДОЛЖЕНИЯ ──────────────────────────────────────
 const continueShareUrl = computed(() => {
@@ -1272,13 +1283,17 @@ const sortedSessions = computed(() => {
 })
 
 function sessionDeckName(s) {
-  return decks.value[s.deckId]?.name || '—'
+  return decks.value[s.deckId]?.name || (missingDeckIds.value.includes(s.deckId) ? 'Колода не найдена' : '—')
 }
 function sessionOrderName(s) {
-  return decks.value[s.deckId]?.orders?.[s.orderIndex]?.name || '—'
+  return decks.value[s.deckId]?.orders?.[s.orderIndex]?.name || (missingDeckIds.value.includes(s.deckId) ? '—' : '—')
 }
 function sessionTotal(s) {
   return decks.value[s.deckId]?.orders?.[s.orderIndex]?.sequence.length ?? 0
+}
+// v5.19.3: проверка, что у сессии отсутствует колода (для показа badge + кнопки удалить)
+function isSessionDeckMissing(s) {
+  return missingDeckIds.value.includes(s.deckId)
 }
 // Защитная проверка: сессия завершена, даже если completed=false,
 // но currentTurn >= длины последовательности (старый баг или миграция).
@@ -1341,6 +1356,9 @@ onMounted(() => {
   }
   // v5.5: авто-загрузка каталога — каталог виден сразу при открытии формы.
   ensureCatalogLoaded()
+  // v5.19.3: фоново загружаем недостающие колоды для сессий из истории
+  // (если пользователь открыл сайт в новом браузере или удалил кастомную колоду)
+  ensureDecksForSessions()
 })
 
 function selectDeck(dId) {

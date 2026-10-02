@@ -1152,6 +1152,54 @@ async function checkDeckUpdates(deckIdArg) {
   }
 }
 
+// ─── v5.19.3: Восстановление missing decks для сессий ──────────
+// Сценарий: пользователь удалил кастомную колоду (или открыл сайт в новом
+// браузере), но в coffee_sessions осталась сессия с этим deckId.
+// Раньше UI показывал «— • порядок —» (т.к. decks.value[s.deckId] undefined).
+// Теперь: ensureDecksForSessions() фоново загружает недостающие колоды из
+// каталога (если они там есть). UI обновится реактивно (decks.value реактивный).
+//
+// missingDeckIds — computed массив deckId, которые есть в sessions, но
+// отсутствуют в decks.value (встроенные + кастомные). Используется в UI
+// для показа badge «Колода не найдена» если каталог пуст или колоды там нет.
+const missingDeckIds = computed(() => {
+  const ids = new Set(sessions.value.map(s => s.deckId).filter(Boolean))
+  return [...ids].filter(id => !decks.value[id])
+})
+
+// ensureDecksForSessions: для каждого missingDeckId ищет URL в catalog и
+// загружает колоду через loadDeckFromUrl. Идемпотентно — повторный вызов
+// не загружает то, что уже загружено или в процессе.
+const _ensuredDeckIds = new Set()
+let _ensureInFlight = false
+
+async function ensureDecksForSessions() {
+  if (_ensureInFlight) return
+  // Сначала убедимся что каталог загружен (без него мы не знаем URL колод)
+  if (catalog.value.length === 0 && !catalogLoading.value) {
+    try { await loadCatalog() } catch { /* catalogError уже выставлен */ }
+  }
+  if (catalog.value.length === 0) return  // каталог недоступен — UI покажет fallback
+
+  const missing = missingDeckIds.value.filter(id => !_ensuredDeckIds.has(id))
+  if (missing.length === 0) return
+
+  _ensureInFlight = true
+  for (const deckId of missing) {
+    _ensuredDeckIds.add(deckId)
+    const item = catalog.value.find(c => c.deckId === deckId)
+    if (!item || !item.url) continue  // нет в каталоге — fallback в UI
+    try {
+      await loadDeckFromUrl(item.url)
+      // importDeck внутри добавит в customDecks → decks.value обновится реактивно
+    } catch (e) {
+      // Ошибка загрузки — оставляем missingDeckIds с этим id, UI покажет fallback
+      console.warn(`[coffee-cards] ensureDecksForSessions: failed to load ${deckId}:`, e.message)
+    }
+  }
+  _ensureInFlight = false
+}
+
 function nextQuestion() {
   if (!currentQuestion.value) return
   const id = currentQuestion.value.id
@@ -1370,6 +1418,8 @@ export function useDeck() {
     // v5.2: catalog
     catalog, catalogLoading, catalogError, catalogLastFetch,
     loadCatalog, loadDeckFromUrl, checkDeckUpdates,
+    // v5.19.3: восстановление missing decks для сессий (см. ensureDecksForSessions)
+    ensureDecksForSessions, missingDeckIds,
     // state
     deck, deckId, orderIndex, currentOrder, currentQuestion, currentTurn,
     role, amIReading, passedIds, skippedIds,
